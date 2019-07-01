@@ -9,7 +9,7 @@
 #include <swarmtal_msgs/drone_commander_state.h>
 #include <mavlink/swarm/mavlink.h>
 #include <inf_uwb_ros/remote_uwb_info.h>
-
+#include <sensor_msgs/TimeReference.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
@@ -17,7 +17,7 @@ using namespace swarmtal_msgs;
 class SwarmPilot {
     ros::NodeHandle nh;
 
-    ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub;
+    ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
 
@@ -30,15 +30,29 @@ class SwarmPilot {
 
     int self_id = -1;
     uint8_t buf[1000] = {0};
+    sensor_msgs::TimeReference uwb_time_ref;
+    void on_uwb_timeref(const sensor_msgs::TimeReference &ref) {
+        uwb_time_ref = ref;
+    }
 
+    ros::Time LPS2ROSTIME(const int32_t &lps_time) {
+        ros::Time base = uwb_time_ref.header.stamp - ros::Duration(uwb_time_ref.time_ref.toSec());
+        return base + ros::Duration(lps_time / 1000.0);
+    }
+
+    int32_t ROSTIME2LPS(ros::Time ros_time) {
+        double lps_t_s = (ros_time - uwb_time_ref.header.stamp).toSec() + uwb_time_ref.time_ref.toSec();
+        return (int32_t)(lps_t_s * 1000);
+    }
 public:
 
     SwarmPilot(ros::NodeHandle & _nh):
         nh(_nh) {
 //        ROS_INFO()
         nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
-        nh.param<double>("send_drone_status_freq", send_drone_status_freq, 1.0);
+        nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
 
+        uwb_timeref_sub = nh.subscribe("/uwb_node/time_ref", 1, &SwarmPilot::on_uwb_timeref, this, ros::TransportHints().tcpNoDelay());
 
         onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
         uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
@@ -89,8 +103,9 @@ public:
 
         if ((ros::Time::now() - last_send_drone_status).toSec() > (1 / send_drone_status_freq) ) {
             last_send_drone_status = ros::Time::now();
-            mavlink_msg_drone_status_pack(self_id, 0, &msg, _state.flight_status, _state.control_auth,
-                    _state.commander_ctrl_mode, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,(int)(_state.bat_vol/10));
+            mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
+                    _state.commander_ctrl_mode, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
+                    _state.vo_valid, _state.bat_vol, _state.pos.x, _state.pos.y, _state.pos.z);
 
             send_mavlink_message(msg);
         }
