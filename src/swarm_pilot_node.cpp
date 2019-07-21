@@ -71,14 +71,20 @@ public:
         drone_onboard_command onboardCommand;
         if (node_id != accept_cmd_node_id && accept_cmd_node_id >= 0) {
             ROS_WARN("Command from unacceptable drone %d, reject", node_id);
-        } else {
-            ROS_INFO("Recv onboard cmd from %d type %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
+            return;
+        } 
+        if (cmd.target_id >=0 && cmd.target_id != self_id) {
+            ROS_WARN("Control target %d not this drone, reject", cmd.target_id);            
+            return;
+        }
+
+        ROS_INFO("Recv onboard cmd from %d type %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
                     node_id,  cmd.command_type,
                     cmd.param1, cmd.param2, cmd.param3,
                     cmd.param4, cmd.param5, cmd.param6,
                     cmd.param7, cmd.param8, cmd.param9,
                     cmd.param10);
-        }
+        
         onboardCommand.command_type = cmd.command_type;
         onboardCommand.param1 = cmd.param1;
         onboardCommand.param2 = cmd.param2;
