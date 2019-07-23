@@ -111,7 +111,7 @@ public:
             last_send_drone_status = ros::Time::now();
             mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
                     _state.commander_ctrl_mode, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
-                    _state.vo_valid, _state.bat_vol, _state.pos.x, _state.pos.y, _state.pos.z);
+                    _state.vo_valid, _state.bat_vol, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
 
             send_mavlink_message(msg);
         }
