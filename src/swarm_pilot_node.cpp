@@ -2,6 +2,7 @@
 // Created by xuhao on 5/21/19.
 //
 
+#include <eigen3/Eigen/Eigen>
 #include <ros/ros.h>
 #include <inf_uwb_ros/incoming_broadcast_data.h>
 #include <inf_uwb_ros/data_buffer.h>
@@ -10,6 +11,8 @@
 #include <mavlink/swarm/mavlink.h>
 #include <inf_uwb_ros/remote_uwb_info.h>
 #include <sensor_msgs/TimeReference.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/String.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
@@ -20,6 +23,7 @@ class SwarmPilot {
     ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
+    ros::Publisher planning_tgt_pub;
 
 
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
@@ -56,7 +60,7 @@ public:
 
         onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
         uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
-
+        planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
         incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
         drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
         uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
@@ -65,6 +69,27 @@ public:
 
     void on_uwb_remote_node(const remote_uwb_info & info) {
         self_id = info.self_id;
+    }
+
+    void send_planning_command(const drone_onboard_command & cmd) {
+        if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+            geometry_msgs::PoseStamped pose_tgt;
+            pose_tgt.header.stamp = ros::Time::now();
+            pose_tgt.header.frame_id = "world";
+            
+            pose_tgt.pose.position.x = cmd.param1 / 10000.0;
+            pose_tgt.pose.position.y = cmd.param2 / 10000.0;
+            pose_tgt.pose.position.z = cmd.param3 / 10000.0;
+
+            Eigen::Quaterniond _quat(Eigen::AngleAxisd(-cmd.param4/10000.0, Eigen::Vector3d::UnitZ()));
+            // pose_tgt.
+            pose_tgt.pose.orientation.w = _quat.w();
+            pose_tgt.pose.orientation.x = _quat.x();
+            pose_tgt.pose.orientation.y = _quat.y();
+            pose_tgt.pose.orientation.z = _quat.z();
+
+            planning_tgt_pub.publish(pose_tgt);
+        }
     }
 
     void on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const mavlink_swarm_remote_command_t & cmd) {
@@ -97,7 +122,12 @@ public:
         onboardCommand.param9 = cmd.param9;
         onboardCommand.param10 = cmd.param10;
 
-        onboardcmd_pub.publish(onboardCommand);
+
+        if (cmd.command_type >= drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+            send_planning_command(onboardCommand);
+        } else {
+            onboardcmd_pub.publish(onboardCommand);
+        }
     }
 
     void on_drone_commander_state(const drone_commander_state & _state) {
@@ -125,22 +155,19 @@ public:
         uwb_send_pub.publish(buffer);
     }
 
-    void incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
+    void incoming_broadcast_data_callback(std::vector<uint8_t> data, int sender_drone_id, ros::Time stamp) {
 //        ROS_INFO("Recv incoming msg %d", data.data.size());
         mavlink_message_t msg;
         mavlink_status_t status;
         bool ret = false;
-        for (int i = 0; i <data.data.size(); i++){
-            uint8_t  c = data.data[i];
-//            printf("%d", c);
+        for (int i = 0; i <data.size(); i++){
+            uint8_t  c = data[i];
             if (mavlink_parse_char(0, c, &msg, &status)) {
-//                ROS_INFO("MSD ID %d", msg.msgid);
-
                 switch(msg.msgid) {
                     case MAVLINK_MSG_ID_SWARM_REMOTE_COMMAND:
                         mavlink_swarm_remote_command_t cmd;
                         mavlink_msg_swarm_remote_command_decode(&msg, &cmd);
-                        on_mavlink_msg_remote_cmd(data.header.stamp, data.remote_id, cmd);
+                        on_mavlink_msg_remote_cmd(stamp, sender_drone_id, cmd);
                         break;
                     default:
                         break;
@@ -148,10 +175,11 @@ public:
             }
         }
 
-//        ROS_INFO("Finish parse %d", data.data.size());
     }
 
-    
+    void incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
+        incoming_broadcast_data_callback(data.data, data.remote_id, data.header.stamp);
+    }
 
 };
 
