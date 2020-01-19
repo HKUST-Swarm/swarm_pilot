@@ -96,6 +96,7 @@ public:
 
             planning_tgt_pub.publish(pose_tgt);
         }
+    }
 
     void traj_mission_callback(uint32_t cmd_type) {
         int _cmd = cmd_type - 100;
