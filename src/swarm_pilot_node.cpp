@@ -13,6 +13,7 @@
 #include <sensor_msgs/TimeReference.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Int8.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
@@ -24,6 +25,7 @@ class SwarmPilot {
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
+    ros::Publisher traj_pub;
 
 
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
@@ -61,10 +63,14 @@ public:
         onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
         uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
         planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
+
+        traj_pub = nh.advertise<std_msgs::Int8>("/traj_start_trigger", 1);
         incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
         drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
         uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
         last_send_drone_status = ros::Time::now() - ros::Duration(10);
+     
+        
     }
 
     void on_uwb_remote_node(const remote_uwb_info & info) {
@@ -90,10 +96,22 @@ public:
 
             planning_tgt_pub.publish(pose_tgt);
         }
+
+    void traj_mission_callback(uint32_t cmd_type) {
+        int _cmd = cmd_type - 100;
+        std_msgs::Int8 cmd;
+        cmd.data = _cmd;
+        traj_pub.publish(cmd);
     }
 
     void on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const mavlink_swarm_remote_command_t & cmd) {
+        if (cmd.command_type >= 100) {
+            traj_mission_callback(cmd.command_type);
+            return;
+        }
+
         drone_onboard_command onboardCommand;
+        
         if (node_id != accept_cmd_node_id && accept_cmd_node_id >= 0) {
             ROS_WARN("Command from unacceptable drone %d, reject", node_id);
             return;
