@@ -55,6 +55,7 @@ public:
     SwarmPilot(ros::NodeHandle & _nh):
         nh(_nh) {
 //        ROS_INFO()
+        nh.param<int>("drone_id", self_id, -1);
         nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
         nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
 
@@ -64,7 +65,7 @@ public:
         uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
         planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
 
-        traj_pub = nh.advertise<std_msgs::Int8>("/traj_start_trigger", 1);
+        traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
         incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
         drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
         uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
