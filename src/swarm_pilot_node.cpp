@@ -159,10 +159,10 @@ public:
 
         if ((ros::Time::now() - last_send_drone_status).toSec() > (1 / send_drone_status_freq) ) {
             last_send_drone_status = ros::Time::now();
-            double bat_remain = -1;
+            // _state.bat_remain = 345.375f * _state.bat_vol - 4757.3;
             mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
                     _state.commander_ctrl_mode, _state.ctrl_input_state, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
-                    _state.vo_valid, _state.bat_vol, bat_remain, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
+                    _state.vo_valid, _state.bat_vol, _state.bat_remain, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
             ROS_INFO("Sending swarm status");
             send_mavlink_message(msg);
         }
