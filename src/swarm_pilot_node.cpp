@@ -177,6 +177,10 @@ public:
         uwb_send_pub.publish(buffer);
     }
 
+    void on_desired_traj_callback() {
+        
+    }
+
     void incoming_broadcast_data_callback(std::vector<uint8_t> data, int sender_drone_id, ros::Time stamp) {
 //        ROS_INFO("Recv incoming msg %d", data.data.size());
         mavlink_message_t msg;
