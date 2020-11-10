@@ -18,10 +18,20 @@
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
 
+class SwarmFormationControl {
+    int self_id;
+public:
+    SwarmFormationControl() {
+
+    }
+
+};
+
 class SwarmPilot {
     ros::NodeHandle nh;
 
     ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub;
+    ros::Subscriber swarm_local_rel_sub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
@@ -71,7 +81,11 @@ public:
         uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
         last_send_drone_status = ros::Time::now() - ros::Duration(10);
      
-        
+        swarm_local_rel_sub = nh.subscribe("/swarm_drones/swarm_drone_fused_relative", 1, &SwarmPilot::)
+    }
+    
+    void on_swarm_fused_relatived(const swarm_msgs::swarm_fused_relative & swarm_fused) {
+
     }
 
     void on_uwb_remote_node(const remote_uwb_info & info) {
