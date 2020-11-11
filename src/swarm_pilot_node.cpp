@@ -14,17 +14,48 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Int8.h>
+#include <swarm_msgs/swarm_fused_relative.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
 
 class SwarmFormationControl {
     int self_id;
-public:
-    SwarmFormationControl() {
+    int formation_mode = CTRL_FORMATION_EXIT;
+    int master_id = -1;
 
+    std::map<int, Eigen::Vector3d> swarm_pos;
+    std::map<int, double> swarm_yaw;
+
+    Eigen::Vector3d dpos;
+    double dyaw;
+public:
+    SwarmFormationControl(ros::NodeHandle & nh, int _self_id):
+        self_id(_self_id) {
     }
 
+    void on_relative_position(const swarm_msgs::swarm_relative & swarm_fused) {
+        if (formation_mode <= swarm_msgs::CTRL_FORMATION_IDLE) {
+            return;
+        }
+
+        if (formation_mode == swarm_msgs::CTRL_FORMATION_HOLD_0 && 
+            swarm_pos.find(master_id) != swarm_pos.end()) {
+            Eigen::Vector3d self_dirsed_pos;
+            self_dirsed_pos = swarm_pos[master_id] + dpos;
+            self_dirsed_pos = swarm_yaw[master_id] + dyaw;
+        }
+    }
+
+    void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, Eigen::Vector3d dpos, double dyaw) {
+        formation_mode = _formation_mode;
+        this->master_id = master_id;
+        this->dpos = dpos;
+        this->dyaw = dyaw;
+    }
+
+    void set_swarm_formation_mode(uint8_t _formation_mode, int master_id) {
+    }
 };
 
 class SwarmPilot {
@@ -81,7 +112,7 @@ public:
         uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
         last_send_drone_status = ros::Time::now() - ros::Duration(10);
      
-        swarm_local_rel_sub = nh.subscribe("/swarm_drones/swarm_drone_fused_relative", 1, &SwarmPilot::)
+        swarm_local_rel_sub = nh.subscribe("/swarm_drones/swarm_drone_fused_relative", 1, &SwarmPilot::on_swarm_fused_relatived, this, ros::TransportHints().tcpNoDelay());
     }
     
     void on_swarm_fused_relatived(const swarm_msgs::swarm_fused_relative & swarm_fused) {
