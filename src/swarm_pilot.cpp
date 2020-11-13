@@ -26,6 +26,10 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
     if (formation_mode == drone_onboard_command::CTRL_FORMATION_HOLD_0 && swarm_pos.find(master_id) != swarm_pos.end()) {
         if (master_id != self_id) {
             Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + dpos;
+            printf("TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
+                self_desired_pos.x(), self_desired_pos.y(), self_desired_pos.z(),
+                swarm_pos[master_id].x(), swarm_pos[master_id].y(), swarm_pos[master_id].z(),
+                dpos.x(), dpos.y(), dpos.z());
             Eigen::Vector3d self_desired_vel = swarm_vel[master_id];
             double self_desired_yaw = swarm_yaw[master_id] + dyaw;
 
@@ -58,13 +62,15 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
 
 void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos, double dyaw) {
     formation_mode = _formation_mode;
-    
+    ROS_INFO("set_swarm_formation_mode _formation_mode %d master_id %d sub_mode %d",
+        _formation_mode, master_id, sub_mode
+    );
     if (formation_mode == drone_onboard_command::CTRL_FORMATION_HOLD_0 ) {
         this->master_id = master_id;
         if (sub_mode == 0) {
             if (swarm_pos.find(master_id) != swarm_pos.end()) {
-                this->dpos = swarm_pos[master_id] - swarm_pos[self_id];
-                this->dyaw = swarm_yaw[master_id] - swarm_yaw[self_id];
+                this->dpos = swarm_pos[self_id] - swarm_pos[master_id];
+                this->dyaw = swarm_yaw[self_id] - swarm_yaw[master_id];
             }
         } else if (sub_mode == 1)  {
             this->dpos = dpos;
@@ -77,8 +83,8 @@ void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, in
         if (sub_mode == 0) {
             Eigen::AngleAxisd R(swarm_yaw[master_id], Eigen::Vector3d::UnitZ());
             if (swarm_pos.find(master_id) != swarm_pos.end()) {
-                this->dpos =  R.inverse()*(swarm_pos[master_id] - swarm_pos[self_id]);
-                this->dyaw = swarm_yaw[master_id] - swarm_yaw[self_id];
+                this->dpos =  R.inverse()*(swarm_pos[self_id] - swarm_pos[master_id]);
+                this->dyaw = swarm_yaw[self_id] - swarm_yaw[master_id];
             }
         } else if (sub_mode == 1)  {
             this->dpos = dpos;
@@ -121,6 +127,7 @@ void SwarmPilot::send_position_command(Eigen::Vector3d pos, double yaw, Eigen::V
 
         planning_tgt_pub.publish(pose_tgt);
     } else {
+        printf("Tring to publish position cmd");
         drone_onboard_command cmd;
         cmd.command_type = drone_onboard_command::CTRL_POS_COMMAND;
         cmd.param1 = pos.x()*10000;
@@ -134,7 +141,7 @@ void SwarmPilot::send_position_command(Eigen::Vector3d pos, double yaw, Eigen::V
         cmd.param9 = 0;
         cmd.param10 = 0;
 
-        position_cmd_pub.publish(cmd);
+        onboardcmd_pub.publish(cmd);
     }
 }
 
@@ -151,6 +158,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
     uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
     planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
+    
 
     traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
     incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());

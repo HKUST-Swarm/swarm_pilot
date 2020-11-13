@@ -1,9 +1,5 @@
 <launch>
     <arg name="drone_id" default="1" />
-    <include file="$(find inf_uwb_ros)/launch/uwb_node.launch">
-        <arg name="self_id" value="$(arg drone_id)" />
-    </include>
-
     <node pkg="swarm_pilot" name="swarm_pilot" type="swarm_pilot_node" output="screen" >
         <param name="drone_id" value="$(arg drone_id)" />
     </node>
