@@ -33,7 +33,7 @@ class SwarmFormationControl {
 public:
     SwarmFormationControl(int _self_id, SwarmPilot * _pilot);
 
-    void on_relative_position(const swarm_msgs::swarm_fused & swarm_fused);
+    void on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused);
 
 
     void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos = Eigen::Vector3d::Zero(), double dyaw = 0);
