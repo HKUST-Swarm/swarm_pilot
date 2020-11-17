@@ -33,8 +33,10 @@ class SwarmFormationControl {
     Eigen::Vector3d dpos;
     double dyaw;
     SwarmPilot * pilot = nullptr;
+    
+    double Ts;
 public:
-    SwarmFormationControl(int _self_id, SwarmPilot * _pilot);
+    SwarmFormationControl(int _self_id, SwarmPilot * _pilot, double filter_Ts);
 
     void on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused);
     void on_swarm_basecoor(const swarm_msgs::swarm_drone_basecoor & swarm_fused);
