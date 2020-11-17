@@ -3,8 +3,14 @@
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
 
-SwarmFormationControl::SwarmFormationControl(int _self_id, SwarmPilot * _pilot):
-    self_id(_self_id), pilot(_pilot) {
+template <typename T>
+inline T lowpass_filter(T input, double Ts, T outputLast, double dt) {
+    double alpha = dt / (Ts + dt);
+    return outputLast + (alpha * (input - outputLast));
+}
+
+SwarmFormationControl::SwarmFormationControl(int _self_id, SwarmPilot * _pilot, double filter_Ts):
+    self_id(_self_id), pilot(_pilot), Ts(filter_Ts) {
 }
 
 void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused) {
@@ -14,9 +20,15 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
         auto vel = swarm_fused.local_drone_velocity[i];
         auto yaw = swarm_fused.local_drone_yaw[i];
 
-        swarm_pos[_id] = Eigen::Vector3d(pos.x, pos.y, pos.z);
-        swarm_vel[_id] = Eigen::Vector3d(vel.x, vel.y, vel.z);
-        swarm_yaw[_id] = yaw;
+        if (swarm_pos.find(_id) != swarm_pos.end()) {
+            swarm_pos[_id] = lowpass_filter(Eigen::Vector3d(pos.x, pos.y, pos.z), Ts, swarm_pos[_id], 0.01);
+            //swarm_vel[_id] = lowpass_filter(Eigen::Vector3d(vel.x, vel.y, vel.z), Ts, swarm_vel[_id], 0.01);
+            swarm_yaw[_id] = lowpass_filter(yaw, Ts, swarm_yaw[_id], 0.01);
+        } else {
+            swarm_pos[_id] = Eigen::Vector3d(pos.x, pos.y, pos.z);
+            swarm_vel[_id] = Eigen::Vector3d(vel.x, vel.y, vel.z);
+            swarm_yaw[_id] = yaw;
+        }
     }
 
     if (formation_mode <= drone_onboard_command::CTRL_FORMATION_IDLE) {
@@ -25,6 +37,7 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
 
     if (formation_mode == drone_onboard_command::CTRL_FORMATION_HOLD_0 
         && swarm_pos.find(master_id) != swarm_pos.end()) {
+        if (master_id != self_id) {
             Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + dpos;
             printf("CTRL_FORMATION_HOLD_0 TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
                 self_desired_pos.x(), self_desired_pos.y(), self_desired_pos.z(),
@@ -34,6 +47,7 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
             double self_desired_yaw = -swarm_yaw[master_id] + dyaw;
 
             pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel);
+        }
     }
 
 
@@ -44,7 +58,7 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
             Eigen::AngleAxisd R(swarm_yaw[master_id], Eigen::Vector3d::UnitZ());
             Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + R*dpos;
             Eigen::Vector3d self_desired_vel = R*swarm_vel[master_id];
-            double self_desired_yaw = swarm_yaw[master_id] + dyaw;
+            double self_desired_yaw = -swarm_yaw[master_id] + dyaw;
             printf("CTRL_FORMATION_HOLD_1 TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
                 self_desired_pos.x(), self_desired_pos.y(), self_desired_pos.z(),
                 swarm_pos[master_id].x(), swarm_pos[master_id].y(), swarm_pos[master_id].z(),
@@ -58,7 +72,7 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
 
         Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + dpos;
         Eigen::Vector3d self_desired_vel = swarm_vel[master_id];
-        double self_desired_yaw = swarm_yaw[master_id] + dyaw;
+        double self_desired_yaw = -swarm_yaw[master_id] + dyaw;
         printf("CTRL_FORMATION_FLY_0 TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
             self_desired_pos.x(), self_desired_pos.y(), self_desired_pos.z(),
             swarm_pos[master_id].x(), swarm_pos[master_id].y(), swarm_pos[master_id].z(),
@@ -69,8 +83,8 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
 
 
 void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos, double dyaw) {
-    ROS_INFO("set_swarm_formation_mode _formation_mode %d master_id %d sub_mode %d",
-        _formation_mode, master_id, sub_mode);
+    ROS_INFO("set_swarm_formation_mode _formation_mode %d master_id %d sub_mode %d self_id %d",
+        _formation_mode, master_id, sub_mode, self_id);
 
     if (swarm_pos.find(master_id) != swarm_pos.end() 
         && swarm_pos.find(self_id) != swarm_pos.end()) {
@@ -158,13 +172,16 @@ void SwarmPilot::send_position_command(Eigen::Vector3d pos, double yaw, Eigen::V
 
 SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     nh(_nh) {
+    
+    double Ts;
     nh.param<int>("drone_id", self_id, -1);
     nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
     nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
+    nh.param<double>("Ts", Ts, 0.1);
     
     assert(self_id > 0 && "Self ID must bigger than 0!!!");
 
-    formation_control = new SwarmFormationControl(self_id, this);
+    formation_control = new SwarmFormationControl(self_id, this, Ts);
 
     uwb_timeref_sub = nh.subscribe("/uwb_node/time_ref", 1, &SwarmPilot::on_uwb_timeref, this, ros::TransportHints().tcpNoDelay());
 
