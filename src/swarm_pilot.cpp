@@ -18,8 +18,19 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
         swarm_vel[_id] = Eigen::Vector3d(vel.x, vel.y, vel.z);
         swarm_yaw[_id] = yaw;
     }
+}
 
-    if (formation_mode <= drone_onboard_command::CTRL_FORMATION_IDLE) {
+void SwarmFormationControl::on_swarm_basecoor(const swarm_msgs::swarm_drone_basecoor & swarm_fused) {
+    for (size_t i = 0; i < swarm_fused.ids.size(); i++) {
+        auto _id = swarm_fused.ids[i];
+        auto pos = swarm_fused.drone_basecoor[i];
+        auto yaw = swarm_fused.drone_baseyaw[i];
+        swarm_transformation[_id] = pose(pos, yaw);
+    }
+}
+
+void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _id) {
+    if (formation_mode <= drone_onboard_command::CTRL_FORMATION_IDLE || _id != master_id) {
         return;
     }
 
@@ -38,27 +49,26 @@ void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused 
     }
 
 
-    if (formation_mode == drone_onboard_command::CTRL_FORMATION_HOLD_1 && swarm_pos.find(master_id) != swarm_pos.end()) {
-        if (master_id != self_id) {
-            Eigen::AngleAxisd R(swarm_yaw[master_id], Eigen::Vector3d::UnitZ());
-            Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + R*dpos;
-            Eigen::Vector3d self_desired_vel = R*swarm_vel[master_id];
-            double self_desired_yaw = swarm_yaw[master_id] + dyaw;
+    // if (formation_mode == drone_onboard_command::CTRL_FORMATION_HOLD_1 && swarm_pos.find(master_id) != swarm_pos.end()) {
+    //     if (master_id != self_id) {
+    //         Eigen::AngleAxisd R(swarm_yaw[master_id], Eigen::Vector3d::UnitZ());
+    //         Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + R*dpos;
+    //         Eigen::Vector3d self_desired_vel = R*swarm_vel[master_id];
+    //         double self_desired_yaw = swarm_yaw[master_id] + dyaw;
 
-            pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel);
-        }
-    }
+    //         pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel);
+    //     }
+    // }
 
-    if (formation_mode == drone_onboard_command::CTRL_FORMATION_FLY_0 && 
-        swarm_pos.find(master_id) != swarm_pos.end()) {
-        Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + dpos;
-        Eigen::Vector3d self_desired_vel = swarm_vel[master_id];
-        double self_desired_yaw = swarm_yaw[master_id] + dyaw;
+    // if (formation_mode == drone_onboard_command::CTRL_FORMATION_FLY_0 && 
+    //     swarm_pos.find(master_id) != swarm_pos.end()) {
+    //     Eigen::Vector3d self_desired_pos = swarm_pos[master_id] + dpos;
+    //     Eigen::Vector3d self_desired_vel = swarm_vel[master_id];
+    //     double self_desired_yaw = swarm_yaw[master_id] + dyaw;
 
-        pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel, true);
-    }
+    //     pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel, true);
+    // }
 }
-
 
 void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos, double dyaw) {
     formation_mode = _formation_mode;
@@ -164,6 +174,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
     drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
     swarm_local_sub = nh.subscribe("/swarm_drones/swarm_drone_fused", 1, &SwarmFormationControl::on_swarm_localization, formation_control, ros::TransportHints().tcpNoDelay());
+    swarm_basecoor_sub = nh.subscribe("/swarm_drones/swarm_drone_basecoor", 1, &SwarmFormationControl::on_swarm_basecoor, formation_control, ros::TransportHints().tcpNoDelay());
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     last_send_drone_status = ros::Time::now() - ros::Duration(10);
     
@@ -236,6 +247,10 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     onboardCommand.param8 = cmd.param8;
     onboardCommand.param9 = cmd.param9;
     onboardCommand.param10 = cmd.param10;
+
+    if (cmd.command_type >= 100) {
+        //This is proxied pos ctrl cmd for formation control
+    }
 
     if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE) {
                                 //CTRL Mode                    //master id          //submode

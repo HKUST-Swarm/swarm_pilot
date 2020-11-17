@@ -11,7 +11,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Int8.h>
-#include <swarm_msgs/swarm_fused.h>
+#include <swarm_msgs/swarm_drone_basecoor.h>
+#include <swarm_msgs/Pose.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
@@ -27,6 +28,8 @@ class SwarmFormationControl {
     std::map<int, Eigen::Vector3d> swarm_vel;
     std::map<int, double> swarm_yaw;
 
+    std::map<int, Swarm::Pose> swarm_transformation;
+
     Eigen::Vector3d dpos;
     double dyaw;
     SwarmPilot * pilot = nullptr;
@@ -34,7 +37,9 @@ public:
     SwarmFormationControl(int _self_id, SwarmPilot * _pilot);
 
     void on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused);
+    void on_swarm_basecoor(const swarm_msgs::swarm_drone_basecoor & swarm_fused);
 
+    void on_position_command(drone_onboard_command cmd, int _id);
 
     void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos = Eigen::Vector3d::Zero(), double dyaw = 0);
 };
@@ -44,6 +49,7 @@ class SwarmPilot {
 
     ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub;
     ros::Subscriber swarm_local_sub;
+    ros::Subscriber swarm_basecoor_sub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
