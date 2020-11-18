@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   inf_uwb_ros
 )
 
+find_package(Eigen3)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -33,6 +34,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
 )
 
  add_executable(${PROJECT_NAME}_node src/swarm_pilot_node.cpp src/swarm_pilot.cpp)

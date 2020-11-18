@@ -4,6 +4,7 @@
 #include <inf_uwb_ros/incoming_broadcast_data.h>
 #include <inf_uwb_ros/data_buffer.h>
 #include <swarmtal_msgs/drone_onboard_command.h>
+#include <swarmtal_msgs/drone_pos_ctrl_cmd.h>
 #include <swarmtal_msgs/drone_commander_state.h>
 #include <mavlink/swarm/mavlink.h>
 #include <inf_uwb_ros/remote_uwb_info.h>
@@ -12,6 +13,7 @@
 #include <std_msgs/String.h>
 #include <std_msgs/Int8.h>
 #include <swarm_msgs/swarm_drone_basecoor.h>
+#include <swarm_msgs/swarm_fused.h>
 #include <swarm_msgs/Pose.h>
 
 using namespace inf_uwb_ros;
@@ -42,14 +44,15 @@ public:
     void on_swarm_basecoor(const swarm_msgs::swarm_drone_basecoor & swarm_fused);
 
     void on_position_command(drone_onboard_command cmd, int _id);
-
+    void on_drone_position_command(drone_pos_ctrl_cmd pos_cmd);
     void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos = Eigen::Vector3d::Zero(), double dyaw = 0);
+
 };
 
 class SwarmPilot {
     ros::NodeHandle nh;
 
-    ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub;
+    ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub, local_cmd_sub;
     ros::Subscriber swarm_local_sub;
     ros::Subscriber swarm_basecoor_sub;
     ros::Publisher onboardcmd_pub;
@@ -72,13 +75,13 @@ class SwarmPilot {
     SwarmFormationControl * formation_control = nullptr;
     void on_uwb_timeref(const sensor_msgs::TimeReference &ref);
 
-    
+public:
+
     ros::Time LPS2ROSTIME(const int32_t &lps_time);
     int32_t ROSTIME2LPS(ros::Time ros_time);
 
-public:
-
     void send_position_command(Eigen::Vector3d pos, double yaw, Eigen::Vector3d vel = Eigen::Vector3d::Zero(), bool enable_planning = false);
+    void send_velocity_command(Eigen::Vector3d vel, double yaw);
 
     SwarmPilot(ros::NodeHandle & _nh);
     
@@ -92,7 +95,7 @@ public:
 
     void on_drone_commander_state(const drone_commander_state & _state);
 
-    void send_mavlink_message(mavlink_message_t & msg);
+    void send_mavlink_message(mavlink_message_t & msg, int send_method = 2);
 
     void incoming_broadcast_data_callback(std::vector<uint8_t> data, int sender_drone_id, ros::Time stamp);
 
