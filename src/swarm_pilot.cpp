@@ -196,7 +196,7 @@ void SwarmFormationControl::on_drone_position_command(drone_pos_ctrl_cmd pos_cmd
         
         } else if (pos_cmd.ctrl_mode == drone_pos_ctrl_cmd::CTRL_CMD_VEL_MODE) {
             mavlink_msg_swarm_remote_command_pack(self_id, 0, &msg, ts, self_id,
-                drone_onboard_command::CTRL_POS_COMMAND + 100,
+                drone_onboard_command::CTRL_VEL_COMMAND + 100,
                 pos_cmd.vel_sp.x * 10000,
                 pos_cmd.vel_sp.y * 10000,
                 pos_cmd.vel_sp.z * 10000,
