@@ -53,19 +53,19 @@ void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _
         && swarm_transformation.find(master_id) != swarm_transformation.end()) {
         if (master_id != self_id) {
             if (cmd.command_type - 100 == drone_onboard_command::CTRL_POS_COMMAND) {
-                pos_sp.x() = cmd.param1/10000;
-                pos_sp.y() = cmd.param2/10000;
-                pos_sp.z() = cmd.param3/10000;
+                pos_sp.x() = cmd.param1/10000.0;
+                pos_sp.y() = cmd.param2/10000.0;
+                pos_sp.z() = cmd.param3/10000.0;
 
-                yaw_sp = cmd.param4/10000;
+                yaw_sp = cmd.param4/10000.0;
 
-                vel_sp.x() = cmd.param5/10000;
-                vel_sp.y() = cmd.param6/10000;
-                vel_sp.z() = cmd.param7/10000;
+                vel_sp.x() = cmd.param5/10000.0;
+                vel_sp.y() = cmd.param6/10000.0;
+                vel_sp.z() = cmd.param7/10000.0;
 
-                acc_sp.x() = cmd.param8/10000;
-                acc_sp.y() = cmd.param9/10000;
-                acc_sp.z() = cmd.param10/10000;
+                acc_sp.x() = cmd.param8/10000.0;
+                acc_sp.y() = cmd.param9/10000.0;
+                acc_sp.z() = cmd.param10/10000.0;
 
                 auto _cvt = swarm_transformation[master_id];
                 Eigen::Vector3d self_desired_pos = _cvt * pos_sp + dpos;
@@ -73,22 +73,23 @@ void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _
                 Eigen::Vector3d self_desired_acc = _cvt.att() * acc_sp;
                 double self_desired_yaw = yaw_sp + _cvt.yaw();
 
-                printf("CTRL_FORMATION_HOLD_0 TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
+                ROS_INFO("CTRL_FORMATION_HOLD_0 POS TGT %3.2f %3.2f %3.2f MASTER SP %3.2f %3.2f %3.2f POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
                     self_desired_pos.x(), self_desired_pos.y(), self_desired_pos.z(),
+                    pos_sp.x(), pos_sp.y(), pos_sp.z(),
                     swarm_pos[master_id].x(), swarm_pos[master_id].y(), swarm_pos[master_id].z(),
                     dpos.x(), dpos.y(), dpos.z());
                 
                 pilot->send_position_command(self_desired_pos, self_desired_yaw, self_desired_vel);
             } else if (cmd.command_type - 100 == drone_onboard_command::CTRL_VEL_COMMAND) {
-                yaw_sp = cmd.param4/10000;
+                yaw_sp = cmd.param4/10000.0;
 
-                vel_sp.x() = cmd.param1/10000;
-                vel_sp.y() = cmd.param2/10000;
-                vel_sp.z() = cmd.param3/10000;
+                vel_sp.x() = cmd.param1/10000.0;
+                vel_sp.y() = cmd.param2/10000.0;
+                vel_sp.z() = cmd.param3/10000.0;
 
-                acc_sp.x() = cmd.param5/10000;
-                acc_sp.y() = cmd.param6/10000;
-                acc_sp.z() = cmd.param7/10000;
+                acc_sp.x() = cmd.param5/10000.0;
+                acc_sp.y() = cmd.param6/10000.0;
+                acc_sp.z() = cmd.param7/10000.0;
 
                 auto _cvt = swarm_transformation[master_id];
                 Eigen::Vector3d self_desired_pos = _cvt * pos_sp + dpos;
@@ -96,7 +97,7 @@ void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _
                 Eigen::Vector3d self_desired_acc = _cvt.att() * acc_sp;
                 double self_desired_yaw = yaw_sp + _cvt.yaw();
 
-                printf("CTRL_FORMATION_HOLD_0 VEL TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
+                ROS_INFO("CTRL_FORMATION_HOLD_0 VEL TGT %3.2f %3.2f %3.2f MASTER POS %3.2f %3.2f %3.2f DPOS %3.2f %3.2f %3.2f\n", 
                     self_desired_vel.x(), self_desired_vel.y(), self_desired_vel.z(),
                     swarm_pos[master_id].x(), swarm_pos[master_id].y(), swarm_pos[master_id].z(),
                     dpos.x(), dpos.y(), dpos.z());
@@ -416,7 +417,7 @@ void SwarmPilot::on_drone_commander_state(const drone_commander_state & _state) 
         mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
                 _state.commander_ctrl_mode, _state.ctrl_input_state, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
                 _state.vo_valid, _state.bat_vol, _state.bat_remain, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
-        ROS_INFO("Sending swarm status");
+        ROS_INFO_THROTTLE(1.0, "Sending swarm status");
         send_mavlink_message(msg);
     }
 
