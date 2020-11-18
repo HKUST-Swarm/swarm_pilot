@@ -143,6 +143,12 @@ void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, in
     ROS_INFO("set_swarm_formation_mode _formation_mode %d master_id %d sub_mode %d self_id %d",
         _formation_mode, master_id, sub_mode, self_id);
 
+    if (_formation_mode == drone_onboard_command::CTRL_FORMATION_IDLE && (master_id == -1 || master_id == self_id)) {
+        formation_mode = _formation_mode;
+        ROS_WARN("Formation fly terminated");
+        return;
+    }
+
     if (swarm_pos.find(master_id) != swarm_pos.end() 
         && swarm_pos.find(self_id) != swarm_pos.end()) {
         formation_mode = _formation_mode;
