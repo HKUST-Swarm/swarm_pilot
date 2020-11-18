@@ -354,14 +354,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
 
     drone_onboard_command onboardCommand;
     
-    if (node_id != accept_cmd_node_id && accept_cmd_node_id >= 0) {
-        ROS_WARN("Command from unacceptable drone %d, reject", node_id);
-        return;
-    } 
-    if (cmd.target_id >=0 && cmd.target_id != self_id) {
-        ROS_WARN("Control target %d not this drone, reject", cmd.target_id);            
-        return;
-    }
+
 
     ROS_INFO("Recv onboard cmd from %d type %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
                 node_id,  cmd.command_type,
@@ -384,6 +377,17 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
 
     if (cmd.command_type >= 100) {
         //This is proxied pos ctrl cmd for formation control
+        formation_control->on_position_command(onboardCommand, cmd.target_id);
+        return;
+    }
+
+    if (node_id != accept_cmd_node_id && accept_cmd_node_id >= 0) {
+        ROS_WARN("Command from unacceptable drone %d, reject", node_id);
+        return;
+    } 
+    if (cmd.target_id >=0 && cmd.target_id != self_id) {
+        ROS_WARN("Control target %d not this drone, reject", cmd.target_id);            
+        return;
     }
 
     if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE) {
