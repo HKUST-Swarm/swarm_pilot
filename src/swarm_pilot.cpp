@@ -347,10 +347,10 @@ void SwarmPilot::traj_mission_callback(uint32_t cmd_type) {
 }
 
 void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const mavlink_swarm_remote_command_t & cmd) {
-    if (cmd.command_type >= 100) {
-        traj_mission_callback(cmd.command_type);
-        return;
-    }
+    // if (cmd.command_type >= 100) {
+    //     traj_mission_callback(cmd.command_type);
+    //     return;
+    // }
 
     drone_onboard_command onboardCommand;
     
