@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   swarm_msgs
+  swarmcomm_msgs
   swarmtal_msgs
   inf_uwb_ros
 )
