@@ -15,6 +15,7 @@
 #include <swarm_msgs/swarm_drone_basecoor.h>
 #include <swarm_msgs/swarm_fused.h>
 #include <swarm_msgs/Pose.h>
+#include <bspline/Bspline.h>
 
 using namespace inf_uwb_ros;
 using namespace swarmtal_msgs;
@@ -43,6 +44,8 @@ public:
     void on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused);
     void on_swarm_basecoor(const swarm_msgs::swarm_drone_basecoor & swarm_fused);
 
+    void on_swarm_traj(const bspline::Bspline & bspl);
+
     void on_position_command(drone_onboard_command cmd, int _id);
     void on_drone_position_command(drone_pos_ctrl_cmd pos_cmd);
     void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos = Eigen::Vector3d::Zero(), double dyaw = 0);
@@ -55,6 +58,8 @@ class SwarmPilot {
     ros::Subscriber incoming_data_sub, drone_cmd_state_sub, uwb_remote_sub, uwb_timeref_sub, local_cmd_sub;
     ros::Subscriber swarm_local_sub;
     ros::Subscriber swarm_basecoor_sub;
+    ros::Subscriber swarm_traj_sub;
+    ros::Publisher swarm_traj_pub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
@@ -100,6 +105,8 @@ public:
     void incoming_broadcast_data_callback(std::vector<uint8_t> data, int sender_drone_id, ros::Time stamp);
 
     void incoming_broadcast_data_sub(const incoming_broadcast_data & data);
+
+    void send_swarm_traj(const bspline::Bspline & bspl);
 
 };
 

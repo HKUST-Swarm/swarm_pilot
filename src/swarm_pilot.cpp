@@ -13,6 +13,37 @@ SwarmFormationControl::SwarmFormationControl(int _self_id, SwarmPilot * _pilot, 
     self_id(_self_id), pilot(_pilot), Ts(filter_Ts) {
 }
 
+
+void SwarmFormationControl::on_swarm_traj(const bspline::Bspline & bspl) {
+    bspline::Bspline bspl_local = bspl;
+    if (bspl.drone_id == self_id) {
+        pilot->send_swarm_traj(bspl_local);
+        return;
+    }
+
+    int _id = bspl.drone_id;
+    
+    if (swarm_transformation.find(_id) == swarm_transformation.end()) {
+        ROS_WARN("Swarm TRAJ fo %d could not be transfer, swarm localization not ready", _id);
+        return;
+    }
+    
+    auto _cvt = swarm_transformation[_id];
+    for (auto & pos : bspl_local.pos_pts) {
+        Eigen::Vector3d _pos(pos.x, pos.y, pos.z);
+        _pos = _cvt * _pos;
+        pos.x = _pos.x();
+        pos.y = _pos.y();
+        pos.z = _pos.z();
+    }
+
+    for (auto & yaw : bspl_local.yaw_pts) {
+        yaw = yaw + _cvt.yaw();
+    }
+
+    pilot->send_swarm_traj(bspl_local);
+}
+
 void SwarmFormationControl::on_swarm_localization(const swarm_msgs::swarm_fused & swarm_fused) {
     for (size_t i = 0; i < swarm_fused.ids.size(); i++) {
         auto _id = swarm_fused.ids[i];
@@ -308,15 +339,17 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
     uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
     planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
-    
+    swarm_traj_pub = nh.advertise<bspline::Bspline>("/planning/swarm_traj", 10);
 
     traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
     incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
     drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
     swarm_local_sub = nh.subscribe("/swarm_drones/swarm_drone_fused", 1, &SwarmFormationControl::on_swarm_localization, formation_control, ros::TransportHints().tcpNoDelay());
     swarm_basecoor_sub = nh.subscribe("/swarm_drones/swarm_drone_basecoor", 1, &SwarmFormationControl::on_swarm_basecoor, formation_control, ros::TransportHints().tcpNoDelay());
+    swarm_traj_sub = nh.subscribe("/planning/swarm_traj_recv", 10, &SwarmFormationControl::on_swarm_traj, formation_control, ros::TransportHints().tcpNoDelay());
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
+
     last_send_drone_status = ros::Time::now() - ros::Duration(10);
     
 }
@@ -344,6 +377,10 @@ void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
 
         planning_tgt_pub.publish(pose_tgt);
     }
+}
+
+void SwarmPilot::send_swarm_traj(const bspline::Bspline & bspl) {
+    swarm_traj_pub.publish(bspl);
 }
 
 void SwarmPilot::traj_mission_callback(uint32_t cmd_type) {
@@ -441,8 +478,7 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
 //        ROS_INFO("Recv incoming msg %d", data.data.size());
     mavlink_message_t msg;
     mavlink_status_t status;
-    bool ret = false;
-    for (int i = 0; i <data.size(); i++){
+    for (size_t i = 0; i <data.size(); i++){
         uint8_t  c = data[i];
         if (mavlink_parse_char(0, c, &msg, &status)) {
             switch(msg.msgid) {
@@ -456,7 +492,6 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
             }
         }
     }
-
 }
 
 void SwarmPilot::incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
