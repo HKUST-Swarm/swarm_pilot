@@ -1,13 +1,13 @@
 #pragma once
 #include <eigen3/Eigen/Eigen>
 #include <ros/ros.h>
-#include <inf_uwb_ros/incoming_broadcast_data.h>
-#include <inf_uwb_ros/data_buffer.h>
+#include <swarmcomm_msgs/incoming_broadcast_data.h>
+#include <swarmcomm_msgs/data_buffer.h>
 #include <swarmtal_msgs/drone_onboard_command.h>
 #include <swarmtal_msgs/drone_pos_ctrl_cmd.h>
 #include <swarmtal_msgs/drone_commander_state.h>
 #include <mavlink/swarm/mavlink.h>
-#include <inf_uwb_ros/remote_uwb_info.h>
+#include <swarmcomm_msgs/remote_uwb_info.h>
 #include <sensor_msgs/TimeReference.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/String.h>
@@ -17,7 +17,7 @@
 #include <swarm_msgs/Pose.h>
 #include <bspline/Bspline.h>
 
-using namespace inf_uwb_ros;
+using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
 
     
