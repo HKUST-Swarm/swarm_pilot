@@ -338,7 +338,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
 
     onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
     uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
-    planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
+    planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/planning/goal", 10);
     swarm_traj_pub = nh.advertise<bspline::Bspline>("/planning/swarm_traj", 10);
 
     traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
