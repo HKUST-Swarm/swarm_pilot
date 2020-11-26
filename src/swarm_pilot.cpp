@@ -1,6 +1,6 @@
 #include <swarm_pilot.h>
 
-using namespace inf_uwb_ros;
+using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
 
 template <typename T>
