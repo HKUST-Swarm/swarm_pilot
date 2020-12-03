@@ -14,7 +14,6 @@ find_package(catkin REQUIRED COMPONENTS
   swarm_msgs
   swarmcomm_msgs
   swarmtal_msgs
-  inf_uwb_ros
 )
 
 find_package(Eigen3)
