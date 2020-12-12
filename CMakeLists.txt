@@ -7,7 +7,6 @@ set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
-  dji_sdk
   roscpp
   rospy
   std_msgs

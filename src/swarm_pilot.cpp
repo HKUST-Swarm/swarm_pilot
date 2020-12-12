@@ -350,8 +350,66 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
 
+    eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::eight_trajectory_timer_callback, this);
+
     last_send_drone_status = ros::Time::now() - ros::Duration(10);
     
+}
+
+void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
+    if (!eight_trajectory_enable) {
+        eight_trajectory_timer_t = 0.0;
+        return;
+    }
+
+    double T = eight_trajectory_timer_period;
+    double ox = 0.0, oy = 0.0, oz = 1.0;
+    
+    double _t = eight_trajectory_timer_t* 2*M_PI/T;
+    double x, y, vx, vy, ax, ay, yaw;
+
+    ox = eight_trajectory_center(0);
+    oy = eight_trajectory_center(1);
+    oz = eight_trajectory_center(2);
+    x = ox + 2 * sin(_t);
+    y = oy + 2 * sin(_t) * cos(_t);
+    vx = 2 * cos(_t) * M_PI * 2/T;
+    vy = 2 * cos(2*_t) * M_PI * 2/T;
+    ax = -2 * sin(_t) * M_PI * 2/T * M_PI * 2/T;
+    ay = -2 * sin(2*_t) * M_PI * 2/T * 2 * M_PI * 2/T;
+    yaw = atan2(-cos(2*_t),cos(_t));
+
+    drone_onboard_command onboardCommand;
+    // onboardCommand.command_type = cmd.command_type;
+    // xyz
+    onboardCommand.param1 = x * 10000;
+    onboardCommand.param2 = y * 10000;
+    onboardCommand.param3 = oz * 10000;
+    // yaw
+    if (eight_trajectory_yaw_enable) {
+        onboardCommand.param4 = yaw;
+    }
+    else
+    {
+        onboardCommand.param4 = 666666;  
+    }
+
+    // vel feedforward
+    onboardCommand.param5 = vx * 10000;
+    onboardCommand.param6 = vy * 10000;
+    onboardCommand.param7 = 0;
+    // acc feedforward
+    onboardCommand.param8 = ax * 10000;
+    onboardCommand.param9 = ay * 10000;
+    onboardCommand.param10 = 0;
+
+    onboardcmd_pub.publish(onboardCommand);
+
+    eight_trajectory_timer_t += 0.02;
+
+    ROS_INFO("Time: %f, Eight trajectory x: %f, y: %f, vx: %f, vy:%f, ax: %f, ay: %f", eight_trajectory_timer_t, x, y, vx, vy, ax, ay);
+
+    return;
 }
     
 void SwarmPilot::on_uwb_remote_node(const remote_uwb_info & info) {
@@ -440,9 +498,21 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
             Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
             onboardCommand.param6/10000
         );
+        eight_trajectory_enable = false;
+    } else if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS) {
+        if (cmd.param1 == 1) {
+            eight_trajectory_enable = true;
+            eight_trajectory_yaw_enable = cmd.param2;
+            eight_trajectory_timer_period = cmd.param3/10000.0;
+            eight_trajectory_timer_t = 0;
+            eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000, cmd.param5/10000, cmd.param6/10000);
+        } else {
+            eight_trajectory_enable = false;
+        }
     } else if (cmd.command_type >= drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
         send_planning_command(onboardCommand);
     } else {
+        eight_trajectory_enable = false;
         onboardcmd_pub.publish(onboardCommand);
     }
 }
