@@ -432,7 +432,7 @@ void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
         pose_tgt.pose.orientation.x = _quat.x();
         pose_tgt.pose.orientation.y = _quat.y();
         pose_tgt.pose.orientation.z = _quat.z();
-
+        ROS_INFO("Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
         planning_tgt_pub.publish(pose_tgt);
     }
 }
@@ -513,7 +513,8 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
             onboardCommand.param6/10000
         );
         eight_trajectory_enable = false;
-    } else if (cmd.command_type >= drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+    } else if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+        eight_trajectory_enable = false;
         send_planning_command(onboardCommand);
     } else {
         eight_trajectory_enable = false;
