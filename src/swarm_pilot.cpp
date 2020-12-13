@@ -492,14 +492,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         return;
     }
 
-    if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE) {
-                                //CTRL Mode                    //master id          //submode
-        formation_control->set_swarm_formation_mode(onboardCommand.command_type, onboardCommand.param1, onboardCommand.param2,
-            Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
-            onboardCommand.param6/10000
-        );
-        eight_trajectory_enable = false;
-    } else if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS) {
+    if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS) {
         if (cmd.param1 == 1) {
             eight_trajectory_enable = true;
             eight_trajectory_yaw_enable = cmd.param2;
@@ -509,6 +502,13 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         } else {
             eight_trajectory_enable = false;
         }
+    } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE) {
+                                //CTRL Mode                    //master id          //submode
+        formation_control->set_swarm_formation_mode(onboardCommand.command_type, onboardCommand.param1, onboardCommand.param2,
+            Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
+            onboardCommand.param6/10000
+        );
+        eight_trajectory_enable = false;
     } else if (cmd.command_type >= drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
         send_planning_command(onboardCommand);
     } else {
