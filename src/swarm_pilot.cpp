@@ -387,7 +387,7 @@ void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
     onboardCommand.param3 = oz * 10000;
     // yaw
     if (eight_trajectory_yaw_enable) {
-        onboardCommand.param4 = yaw;
+        onboardCommand.param4 = yaw*10000;
     }
     else
     {
@@ -407,7 +407,7 @@ void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
 
     eight_trajectory_timer_t += 0.02;
 
-    ROS_INFO("Time: %f, Eight trajectory x: %f, y: %f, vx: %f, vy:%f, ax: %f, ay: %f", eight_trajectory_timer_t, x, y, vx, vy, ax, ay);
+    // ROS_INFO("Time: %f, Eight trajectory x: %f, y: %f, vx: %f, vy:%f, ax: %f, ay: %f", eight_trajectory_timer_t, x, y, vx, vy, ax, ay);
 
     return;
 }
@@ -499,6 +499,10 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
             eight_trajectory_timer_period = cmd.param3/10000.0;
             eight_trajectory_timer_t = 0;
             eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000, cmd.param5/10000, cmd.param6/10000);
+            ROS_INFO("Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
+                eight_trajectory_yaw_enable,
+                eight_trajectory_timer_period,
+                eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
         } else {
             eight_trajectory_enable = false;
         }
