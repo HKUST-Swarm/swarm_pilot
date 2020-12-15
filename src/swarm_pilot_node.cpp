@@ -7,14 +7,8 @@ int main(int argc, char** argv)
 {
 
     ROS_INFO("swarm pilot\nIniting\n");
-
     ros::init(argc, argv, "swarm_pilot");
-
     ros::NodeHandle nh("swarm_pilot");
-
     SwarmPilot sp(nh);
-
-    ROS_INFO("swarm_pilot node ready");
     ros::spin();
-
 }

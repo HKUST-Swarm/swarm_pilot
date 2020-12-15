@@ -323,13 +323,12 @@ void SwarmPilot::send_velocity_command(Eigen::Vector3d vel, double yaw) {
 
 SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     nh(_nh) {
-    
     double Ts;
     nh.param<int>("drone_id", self_id, -1);
     nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
     nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
     nh.param<double>("Ts", Ts, 0.1);
-    
+
     assert(self_id > 0 && "Self ID must bigger than 0!!!");
 
     formation_control = new SwarmFormationControl(self_id, this, Ts);
@@ -354,6 +353,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
 
     last_send_drone_status = ros::Time::now() - ros::Duration(10);
     
+    ROS_INFO("swarm_pilot node %d ready", self_id);
 }
 
 void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
