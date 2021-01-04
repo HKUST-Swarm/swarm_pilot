@@ -67,6 +67,11 @@ class SwarmPilot {
 
     ros::Publisher position_cmd_pub;
 
+    ros::Timer eight_trajectory_timer;
+    double eight_trajectory_timer_t = 0.0, eight_trajectory_timer_period = 30.0;
+    bool eight_trajectory_enable = false, eight_trajectory_yaw_enable = false;
+    Vector3d eight_trajectory_center;
+
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
     double send_drone_status_freq = 1.0;
 
@@ -107,6 +112,8 @@ public:
     void incoming_broadcast_data_sub(const incoming_broadcast_data & data);
 
     void send_swarm_traj(const bspline::Bspline & bspl);
+
+    void eight_trajectory_timer_callback(const ros::TimerEvent &e);
 
 };
 
