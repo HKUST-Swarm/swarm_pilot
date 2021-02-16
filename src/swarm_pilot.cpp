@@ -387,7 +387,13 @@ void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
     onboardCommand.param3 = oz * 10000;
     // yaw
     if (eight_trajectory_yaw_enable) {
-        onboardCommand.param4 = yaw*10000;
+        if (_t < 0.5) {
+            yaw = _t * 2 * yaw;
+            onboardCommand.param4 = yaw*10000;
+        } else {
+            onboardCommand.param4 = yaw*10000;
+        }
+
     }
     else
     {
