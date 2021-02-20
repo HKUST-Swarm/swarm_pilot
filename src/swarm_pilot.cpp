@@ -73,7 +73,8 @@ void SwarmFormationControl::on_swarm_basecoor(const swarm_msgs::swarm_drone_base
 }
 
 void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _id) {
-    if (formation_mode <= drone_onboard_command::CTRL_FORMATION_IDLE || _id != master_id || _id == self_id) {
+    if (formation_mode <= drone_onboard_command::CTRL_FORMATION_IDLE || _id != master_id || _id == self_id ||
+    !pilot->is_planning_control_available()) {
         return;
     }
 
@@ -173,6 +174,9 @@ void SwarmFormationControl::on_position_command(drone_onboard_command cmd, int _
 void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos, double dyaw) {
     ROS_INFO("set_swarm_formation_mode _formation_mode %d master_id %d sub_mode %d self_id %d",
         _formation_mode, master_id, sub_mode, self_id);
+    if (!pilot->is_planning_control_available()) {
+        return;
+    }
 
     if (_formation_mode == drone_onboard_command::CTRL_FORMATION_IDLE && (master_id == -1 || master_id == self_id)) {
         formation_mode = _formation_mode;
@@ -213,6 +217,9 @@ void SwarmFormationControl::set_swarm_formation_mode(uint8_t _formation_mode, in
 }
 
 void SwarmFormationControl::on_drone_position_command(drone_pos_ctrl_cmd pos_cmd) {
+    if (!pilot->is_planning_control_available()) {
+        return;
+    }
     if (self_id == master_id && formation_mode > drone_onboard_command::CTRL_FORMATION_IDLE) {
         //Then broadcast this message to all
         auto ts = pilot->ROSTIME2LPS(ros::Time::now());
@@ -356,8 +363,15 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     ROS_INFO("swarm_pilot node %d ready", self_id);
 }
 
+bool SwarmPilot::is_planning_control_available() {
+    return cmd_state.ctrl_input_state== drone_commander_state::CTRL_INPUT_ONBOARD
+        && cmd_state.control_auth == drone_commander_state::CTRL_AUTH_THIS
+        && cmd_state.flight_status == drone_commander_state::FLIGHT_STATUS_IN_AIR;
+}
+
 void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
-    if (!eight_trajectory_enable) {
+    if (!eight_trajectory_enable || !is_planning_control_available()) {
+        eight_trajectory_enable = false;
         eight_trajectory_timer_t = 0.0;
         return;
     }
@@ -423,7 +437,8 @@ void SwarmPilot::on_uwb_remote_node(const remote_uwb_info & info) {
 }
 
 void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
-    if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+    if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND &&
+        is_planning_control_available()) {
         geometry_msgs::PoseStamped pose_tgt;
         pose_tgt.header.stamp = ros::Time::now();
         pose_tgt.header.frame_id = "world";
@@ -498,7 +513,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         return;
     }
 
-    if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS) {
+    if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS && is_planning_control_available()) {
         if (cmd.param1 == 1) {
             eight_trajectory_enable = true;
             eight_trajectory_yaw_enable = cmd.param2;
@@ -512,7 +527,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         } else {
             eight_trajectory_enable = false;
         }
-    } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE) {
+    } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE && is_planning_control_available()) {
                                 //CTRL Mode                    //master id          //submode
         formation_control->set_swarm_formation_mode(onboardCommand.command_type, onboardCommand.param1, onboardCommand.param2,
             Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),

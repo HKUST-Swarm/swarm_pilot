@@ -85,7 +85,9 @@ class SwarmPilot {
     SwarmFormationControl * formation_control = nullptr;
     void on_uwb_timeref(const sensor_msgs::TimeReference &ref);
 
+
 public:
+    bool is_planning_control_available();
 
     ros::Time LPS2ROSTIME(const int32_t &lps_time);
     int32_t ROSTIME2LPS(ros::Time ros_time);
