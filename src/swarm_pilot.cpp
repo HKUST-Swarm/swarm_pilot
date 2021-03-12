@@ -364,8 +364,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
 }
 
 bool SwarmPilot::is_planning_control_available() {
-    return cmd_state.ctrl_input_state== drone_commander_state::CTRL_INPUT_ONBOARD
-        && cmd_state.control_auth == drone_commander_state::CTRL_AUTH_THIS
+    return cmd_state.control_auth == drone_commander_state::CTRL_AUTH_THIS
         && cmd_state.flight_status == drone_commander_state::FLIGHT_STATUS_IN_AIR;
 }
 
@@ -479,8 +478,9 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     
 
 
-    ROS_INFO("Recv onboard cmd from %d type %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
+    ROS_INFO("Recv onboard cmd from %d type %d is planning ok %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
                 node_id,  cmd.command_type,
+                is_planning_control_available(),
                 cmd.param1, cmd.param2, cmd.param3,
                 cmd.param4, cmd.param5, cmd.param6,
                 cmd.param7, cmd.param8, cmd.param9,
