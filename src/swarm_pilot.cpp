@@ -345,6 +345,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     onboardcmd_pub = nh.advertise<drone_onboard_command>("/drone_commander/onboard_command", 1);
     uwb_send_pub = nh.advertise<data_buffer>("/uwb_node/send_broadcast_data", 10);
     planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/planning/goal", 10);
+    exprolaration_pub = nh.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 10);
     swarm_traj_pub = nh.advertise<bspline::Bspline>("/planning/swarm_traj", 10);
 
     traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
@@ -435,6 +436,14 @@ void SwarmPilot::on_uwb_remote_node(const remote_uwb_info & info) {
     self_id = info.self_id;
 }
 
+void SwarmPilot::send_start_exploration(const drone_onboard_command & cmd) {
+    geometry_msgs::PoseStamped pose_tgt;
+    pose_tgt.header.stamp = ros::Time::now();
+    pose_tgt.header.frame_id = "world";
+    exprolaration_pub.publish(pose_tgt);
+}
+
+
 void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
     if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND &&
         is_planning_control_available()) {
@@ -475,7 +484,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     // }
 
     drone_onboard_command onboardCommand;
-    
+    eight_trajectory_enable = false;
 
 
     ROS_INFO("Recv onboard cmd from %d type %d is planning ok %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
@@ -524,8 +533,6 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
                 eight_trajectory_yaw_enable,
                 eight_trajectory_timer_period,
                 eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
-        } else {
-            eight_trajectory_enable = false;
         }
     } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE && is_planning_control_available()) {
                                 //CTRL Mode                    //master id          //submode
@@ -533,12 +540,11 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
             Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
             onboardCommand.param6/10000
         );
-        eight_trajectory_enable = false;
     } else if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
-        eight_trajectory_enable = false;
         send_planning_command(onboardCommand);
+    } else if (cmd.command_type == drone_onboard_command::CTRL_TASK_EXPROLARATION) {
+        send_start_exploration(onboardCommand);
     } else {
-        eight_trajectory_enable = false;
         onboardcmd_pub.publish(onboardCommand);
     }
 }
