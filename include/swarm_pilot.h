@@ -63,7 +63,7 @@ class SwarmPilot {
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
-    ros::Publisher traj_pub;
+    ros::Publisher traj_pub, exprolaration_pub;
 
     ros::Publisher position_cmd_pub;
 
@@ -100,6 +100,8 @@ public:
     void on_uwb_remote_node(const remote_uwb_info & info);
 
     void send_planning_command(const drone_onboard_command & cmd);
+
+    void send_start_exploration(const drone_onboard_command & cmd);
 
     void traj_mission_callback(uint32_t cmd_type);
 
