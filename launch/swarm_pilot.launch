@@ -1,8 +1,10 @@
 <launch>
     <arg name="drone_id" default="1" />
     <arg name="output" default="screen" />
+    <arg name="debug" default="false" />
     <node pkg="swarm_pilot" name="swarm_pilot" type="swarm_pilot_node" output="$(arg output)" >
         <param name="drone_id" value="$(arg drone_id)" />
         <param name="Ts" value="0.1" />
+        <param name="planning_debug_mode" value="$(arg debug)" />
     </node>
 </launch>

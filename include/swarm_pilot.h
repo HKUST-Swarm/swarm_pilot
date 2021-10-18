@@ -85,6 +85,8 @@ class SwarmPilot {
     SwarmFormationControl * formation_control = nullptr;
     void on_uwb_timeref(const sensor_msgs::TimeReference &ref);
 
+    bool planning_debug_mode = false;
+
 
 public:
     bool is_planning_control_available();

@@ -331,6 +331,7 @@ void SwarmPilot::send_velocity_command(Eigen::Vector3d vel, double yaw) {
 SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     nh(_nh) {
     double Ts;
+    nh.param<bool>("planning_debug_mode", planning_debug_mode, false);
     nh.param<int>("drone_id", self_id, -1);
     nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
     nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
@@ -365,8 +366,12 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
 }
 
 bool SwarmPilot::is_planning_control_available() {
-    return cmd_state.control_auth == drone_commander_state::CTRL_AUTH_THIS
-        && cmd_state.flight_status == drone_commander_state::FLIGHT_STATUS_IN_AIR;
+    if (planning_debug_mode) {
+        return true;
+    } else {
+        return cmd_state.control_auth == drone_commander_state::CTRL_AUTH_THIS
+            && cmd_state.flight_status == drone_commander_state::FLIGHT_STATUS_IN_AIR;
+    }
 }
 
 void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
@@ -441,6 +446,8 @@ void SwarmPilot::send_start_exploration(const drone_onboard_command & cmd) {
     pose_tgt.header.stamp = ros::Time::now();
     pose_tgt.header.frame_id = "world";
     exprolaration_pub.publish(pose_tgt);
+    ROS_INFO("Sending exploration command.");
+
 }
 
 
@@ -463,6 +470,8 @@ void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
         pose_tgt.pose.orientation.z = _quat.z();
         ROS_INFO("Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
         planning_tgt_pub.publish(pose_tgt);
+    } else {
+        ROS_WARN("Reject fly to. Planning not ready.");
     }
 }
 
@@ -522,29 +531,45 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         return;
     }
 
-    if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS && is_planning_control_available()) {
-        if (cmd.param1 == 1) {
-            eight_trajectory_enable = true;
-            eight_trajectory_yaw_enable = cmd.param2;
-            eight_trajectory_timer_period = cmd.param3/10000.0;
-            eight_trajectory_timer_t = 0;
-            eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000, cmd.param5/10000, cmd.param6/10000);
-            ROS_INFO("Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
-                eight_trajectory_yaw_enable,
-                eight_trajectory_timer_period,
-                eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
+    if (cmd.command_type==drone_onboard_command::CTRL_SPEC_TRAJS) {
+        if (is_planning_control_available()) {
+            if (cmd.param1 == 1) {
+                eight_trajectory_enable = true;
+                eight_trajectory_yaw_enable = cmd.param2;
+                eight_trajectory_timer_period = cmd.param3/10000.0;
+                eight_trajectory_timer_t = 0;
+                eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000, cmd.param5/10000, cmd.param6/10000);
+                ROS_INFO("Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
+                    eight_trajectory_yaw_enable,
+                    eight_trajectory_timer_period,
+                    eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
+            }
+        } else {
+            ROS_WARN("CTRL_SPEC_TRAJS command reject: Planning control not available.");
         }
     } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE 
         && cmd.command_type <= drone_onboard_command::CTRL_FORMATION_FLY_1 && is_planning_control_available()) {
                                 //CTRL Mode                    //master id          //submode
-        formation_control->set_swarm_formation_mode(onboardCommand.command_type, onboardCommand.param1, onboardCommand.param2,
-            Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
-            onboardCommand.param6/10000
-        );
-    } else if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND && is_planning_control_available()) {
-        send_planning_command(onboardCommand);
-    } else if (cmd.command_type == drone_onboard_command::CTRL_TASK_EXPROLARATION && is_planning_control_available()) {
-        send_start_exploration(onboardCommand);
+        if (is_planning_control_available()) {
+            formation_control->set_swarm_formation_mode(onboardCommand.command_type, onboardCommand.param1, onboardCommand.param2,
+                Eigen::Vector3d(onboardCommand.param3/10000, onboardCommand.param4/10000, onboardCommand.param5/10000),
+                onboardCommand.param6/10000
+            );
+        } else {
+            ROS_WARN("Planning command reject: Planning control not available.");
+        }
+    } else if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
+        if(is_planning_control_available()) {
+            send_planning_command(onboardCommand);
+        } else {
+            ROS_WARN("Planning command reject: Planning control not available.");
+        }
+    } else if (cmd.command_type == drone_onboard_command::CTRL_TASK_EXPROLARATION) {
+        if (is_planning_control_available()) {
+            send_start_exploration(onboardCommand);
+        } else {
+            ROS_WARN("Expo command reject: Planning control not available.");
+        }
     } else {
         onboardcmd_pub.publish(onboardCommand);
     }
