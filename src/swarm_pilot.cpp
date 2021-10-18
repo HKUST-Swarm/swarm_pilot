@@ -360,7 +360,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
 
     eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::eight_trajectory_timer_callback, this);
 
-    last_send_drone_status = ros::Time::now() - ros::Duration(10);
+    last_send_drone_status = ros::Time(0);
     
     ROS_INFO("swarm_pilot node %d ready", self_id);
 }
