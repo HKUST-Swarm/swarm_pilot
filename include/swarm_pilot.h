@@ -68,8 +68,16 @@ class SwarmPilot {
     ros::Publisher position_cmd_pub;
 
     ros::Timer eight_trajectory_timer;
-    double eight_trajectory_timer_t = 0.0, eight_trajectory_timer_period = 30.0;
+    double mission_trajectory_timer_t = 0.0, eight_trajectory_timer_period = 30.0;
     bool eight_trajectory_enable = false, eight_trajectory_yaw_enable = false;
+    bool mission_trajs_enable = false, mission_trajs_yaw_enable = false;
+    
+    std::vector<Eigen::Matrix<double, Eigen::Dynamic, 4>> mission_trajs; //[X, Y, Z, YAW] XYZ IN FLU. YAW in NED.
+    std::vector<Eigen::Matrix<double, Eigen::Dynamic, 1>> mission_trajs_t;
+
+    int cur_mission_index = 0;
+    int cur_mission_id = 0;
+    
     Vector3d eight_trajectory_center;
 
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
@@ -105,8 +113,6 @@ public:
 
     void send_start_exploration(const drone_onboard_command & cmd);
 
-    void traj_mission_callback(uint32_t cmd_type);
-
     void on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const mavlink_swarm_remote_command_t & cmd);
 
     void on_drone_commander_state(const drone_commander_state & _state);
@@ -120,6 +126,12 @@ public:
     void send_swarm_traj(const bspline::Bspline & bspl);
 
     void eight_trajectory_timer_callback(const ros::TimerEvent &e);
+    void timer_callback(const ros::TimerEvent &e);
+    void mission_trajs_timer_callback(const ros::TimerEvent &e);
+
+    void start_mission_trajs(const drone_onboard_command & cmd);
+
+    void load_missions(ros::NodeHandle & _nh);
 
 };
 
