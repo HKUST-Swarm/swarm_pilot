@@ -8,7 +8,7 @@ using namespace swarmtal_msgs;
 
 Eigen::MatrixXd readMatrix(const char * filename) {
     int cols = 0, rows = 0;
-    double buff[MAXBUFSIZE];
+    double buff[MAXBUFSIZE] = {0};
 
     // Read numbers from file into buffer.
     std::ifstream infile;
@@ -20,20 +20,21 @@ Eigen::MatrixXd readMatrix(const char * filename) {
 
         int temp_cols = 0;
         std::stringstream stream(line);
-        while(! stream.eof())
+        while(! stream.eof()){
             stream >> buff[cols*rows+temp_cols++];
+        }
 
         if (temp_cols == 0)
             continue;
 
         if (cols == 0)
             cols = temp_cols;
-    rows++;
+        if (temp_cols>=5) {
+            rows++;
+        }
     }
 
     infile.close();
-
-    rows--;
 
     // Populate matrix with numbers.
     Eigen::MatrixXd result(rows,cols);
@@ -375,16 +376,19 @@ void SwarmPilot::load_missions(ros::NodeHandle & nh) {
     int mission_num = 1;
     nh.param<int>("mission_num", mission_num, 1);
     std::string mission_path;
-    nh.param<std::string>("mission_path", "/home/dji/SwarmConfig/missions/");
-
+    nh.param<std::string>("mission_path", mission_path,  "/home/dji/SwarmConfig/missions/");
+    ROS_INFO("[SWARM_LOOP] Trying to load %d missions from %s", mission_num, mission_path.c_str());
     char mission_i_path[100] = {0};
     for (int i = 0; i < mission_num; i ++) {
         sprintf(mission_i_path, "%s/mission_%d_drone%d.csv", mission_path.c_str(), i, self_id);
         auto mission = readMatrix(mission_i_path);
         Eigen::Matrix<double, Eigen::Dynamic, 1> mission_traj_t = mission.block(0, 0, mission.rows(), 1);
-        Eigen::Matrix<double, Eigen::Dynamic, 4> mission_traj = mission.block(0, 1, mission.rows(), 3);
-        mission_trajs_t.push_back(mission_traj_t);
-        mission_trajs.push_back(mission_traj);
+        Eigen::Matrix<double, Eigen::Dynamic, 4> mission_traj = mission.block(0, 1, mission.rows(), 4);
+        if (mission_traj_t.rows() > 0) {
+            mission_trajs_t.push_back(mission_traj_t);
+            mission_trajs.push_back(mission_traj);
+            ROS_INFO("[SWARM_LOOP] Loaded mission %d from %s pts: %d duration: %3.1fs", i, mission_i_path, mission_traj_t.rows(), mission_traj_t(mission_traj_t.rows() - 1));
+        }
     }
 }
 
@@ -419,11 +423,11 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
 
-    eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::eight_trajectory_timer_callback, this);
+    eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::timer_callback, this);
 
     last_send_drone_status = ros::Time(0);
     
-    ROS_INFO("swarm_pilot node %d ready", self_id);
+    ROS_INFO("[SWARM_PILOT] Node %d ready", self_id);
 }
 
 bool SwarmPilot::is_planning_control_available() {
@@ -457,15 +461,16 @@ void SwarmPilot::mission_trajs_timer_callback(const ros::TimerEvent &e) {
     if (mission_trajs_enable && cur_mission_id < mission_trajs_t.size()) {
         auto & mission_traj_t = mission_trajs_t[cur_mission_id];
         auto & mission_traj = mission_trajs[cur_mission_id];
+        bool need_send_planning_cmd = false;
 
-        while (mission_traj_t[cur_mission_index] <  mission_trajectory_timer_t&&
-            cur_mission_index < mission_traj_t.rows() ) {
+        while (cur_mission_index < 0 || cur_mission_index < mission_traj_t.rows() - 1 && mission_traj_t[cur_mission_index + 1] <  mission_trajectory_timer_t) {
             cur_mission_index++;
+            need_send_planning_cmd = true;
         }
         
-        if (cur_mission_index >= mission_traj_t.rows()) {
-            mission_trajs_enable = false;
-            ROS_INFO("[SWARM_PILOT] Mission_trajs finish.");
+        mission_trajectory_timer_t+= 0.02;
+
+        if (!need_send_planning_cmd) {
             return;
         }
 
@@ -490,10 +495,18 @@ void SwarmPilot::mission_trajs_timer_callback(const ros::TimerEvent &e) {
         pose_tgt.pose.orientation.x = _quat.x();
         pose_tgt.pose.orientation.y = _quat.y();
         pose_tgt.pose.orientation.z = _quat.z();
-        ROS_INFO("Mission traj navigate to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
+        ROS_INFO("Mission index %d traj navigate to [%3.2f, %3.2f, %3.2f]", cur_mission_index, pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
         planning_tgt_pub.publish(pose_tgt);
+
+        if (cur_mission_index >= mission_traj_t.rows() - 1) {
+            mission_trajs_enable = false;
+            cur_mission_index = -1;
+            mission_trajectory_timer_t = 0;
+            ROS_INFO("[SWARM_PILOT] Mission_trajs finish.");
+            return;
+        }
+
     }
-    mission_trajectory_timer_t+= 0.02;
 }
 
 void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
@@ -569,6 +582,8 @@ void SwarmPilot::start_mission_trajs(const drone_onboard_command & cmd) {
 
     mission_trajs_enable = true;
     mission_trajectory_timer_t = 0;
+    cur_mission_index = -1;
+            
     ROS_INFO("[SWAMR_PILOT] start_mission_trajs mission %d enable_yaw %d", cur_mission_id, mission_trajs_yaw_enable);
 }
 
@@ -581,7 +596,7 @@ void SwarmPilot::send_start_exploration(const drone_onboard_command & cmd) {
     pose_tgt.header.stamp = ros::Time::now();
     pose_tgt.header.frame_id = "world";
     exprolaration_pub.publish(pose_tgt);
-    ROS_INFO("Sending exploration command.");
+    ROS_INFO("[SWAMR_PILOT] Sending exploration command.");
 
 }
 
@@ -603,10 +618,10 @@ void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
         pose_tgt.pose.orientation.x = _quat.x();
         pose_tgt.pose.orientation.y = _quat.y();
         pose_tgt.pose.orientation.z = _quat.z();
-        ROS_INFO("Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
+        ROS_INFO("[SWAMR_PILOT] Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
         planning_tgt_pub.publish(pose_tgt);
     } else {
-        ROS_WARN("Reject fly to. Planning not ready.");
+        ROS_WARN("[SWAMR_PILOT] Reject fly to. Planning not ready.");
     }
 }
 
@@ -624,7 +639,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     eight_trajectory_enable = false;
 
 
-    ROS_INFO("Recv onboard cmd from %d type %d is planning ok %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
+    ROS_INFO("[SWAMR_PILOT] Recv onboard cmd from %d type %d is planning ok %d with 1-3 %d %d %d 4-6 %d %d %d, 7-10 %d %d %d %d",
                 node_id,  cmd.command_type,
                 is_planning_control_available(),
                 cmd.param1, cmd.param2, cmd.param3,
@@ -651,11 +666,11 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     }
 
     if (node_id != accept_cmd_node_id && accept_cmd_node_id >= 0) {
-        ROS_WARN("Command from unacceptable drone %d, reject", node_id);
+        ROS_WARN("[SWAMR_PILOT] Command from unacceptable drone %d, reject", node_id);
         return;
     } 
     if (cmd.target_id >=0 && cmd.target_id != self_id) {
-        ROS_WARN("Control target %d not this drone, reject", cmd.target_id);            
+        ROS_WARN("[SWAMR_PILOT] Control target %d not this drone, reject", cmd.target_id);            
         return;
     }
 
@@ -667,13 +682,13 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
                 eight_trajectory_timer_period = cmd.param3/10000.0;
                 mission_trajectory_timer_t = 0;
                 eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000, cmd.param5/10000, cmd.param6/10000);
-                ROS_INFO("Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
+                ROS_INFO("[SWAMR_PILOT] Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
                     eight_trajectory_yaw_enable,
                     eight_trajectory_timer_period,
                     eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
             }
         } else {
-            ROS_WARN("CTRL_SPEC_TRAJS command reject: Planning control not available.");
+            ROS_WARN("[SWAMR_PILOT] CTRL_SPEC_TRAJS command reject: Planning control not available.");
         }
     } else if (cmd.command_type >= drone_onboard_command::CTRL_FORMATION_IDLE 
         && cmd.command_type <= drone_onboard_command::CTRL_FORMATION_FLY_1 && is_planning_control_available()) {
@@ -684,25 +699,25 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
                 onboardCommand.param6/10000
             );
         } else {
-            ROS_WARN("Planning command reject: Planning control not available.");
+            ROS_WARN("[SWAMR_PILOT] Planning command reject: Planning control not available.");
         }
     } else if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND) {
         if(is_planning_control_available()) {
             send_planning_command(onboardCommand);
         } else {
-            ROS_WARN("Planning command reject: Planning control not available.");
+            ROS_WARN("[SWAMR_PILOT] Planning command reject: Planning control not available.");
         }
     } else if (cmd.command_type == drone_onboard_command::CTRL_TASK_EXPROLARATION) {
         if (is_planning_control_available()) {
             send_start_exploration(onboardCommand);
         } else {
-            ROS_WARN("Expo command reject: Planning control not available.");
+            ROS_WARN("[SWAMR_PILOT] Expo command reject: Planning control not available.");
         }
     }  else if (cmd.command_type == drone_onboard_command::CTRL_MISSION_TRAJS) {
         if (is_planning_control_available()) {
             start_mission_trajs(onboardCommand);
         } else {
-            ROS_WARN("CTRL_MISSION_TRAJS reject: Planning control not available.");
+            ROS_WARN("[SWAMR_PILOT] CTRL_MISSION_TRAJS reject: Planning control not available.");
         }
     } else {
         onboardcmd_pub.publish(onboardCommand);
@@ -712,7 +727,7 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
 void SwarmPilot::on_drone_commander_state(const drone_commander_state & _state) {
     mavlink_message_t msg;
     if (self_id < 0) {
-        ROS_WARN("Don't have self id, unable to send drone status");
+        ROS_WARN("[SWAMR_PILOT] Don't have self id, unable to send drone status");
     }
     cmd_state = _state;
 
@@ -722,7 +737,7 @@ void SwarmPilot::on_drone_commander_state(const drone_commander_state & _state) 
         mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
                 _state.commander_ctrl_mode, _state.ctrl_input_state, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
                 _state.vo_valid,_state.vo_latency, _state.bat_vol, _state.bat_remain, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
-        ROS_INFO_THROTTLE(1.0, "Sending swarm status");
+        ROS_INFO_THROTTLE(1.0, "[SWAMR_PILOT] Sending swarm status");
         send_mavlink_message(msg);
     }
 
