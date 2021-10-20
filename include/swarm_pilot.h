@@ -49,7 +49,7 @@ public:
     void on_position_command(drone_onboard_command cmd, int _id);
     void on_drone_position_command(drone_pos_ctrl_cmd pos_cmd);
     void set_swarm_formation_mode(uint8_t _formation_mode, int master_id, int sub_mode, Eigen::Vector3d dpos = Eigen::Vector3d::Zero(), double dyaw = 0);
-
+    void end_formation();
 };
 
 class SwarmPilot {
@@ -130,8 +130,11 @@ public:
     void mission_trajs_timer_callback(const ros::TimerEvent &e);
 
     void start_mission_trajs(const drone_onboard_command & cmd);
+    void start_spec_trajs(const drone_onboard_command & cmd);
+    void end_mission();
 
     void load_missions(ros::NodeHandle & _nh);
+
 
 };
 
