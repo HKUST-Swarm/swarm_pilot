@@ -805,11 +805,19 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
                     mavlink_msg_swarm_remote_command_decode(&msg, &cmd);
                     on_mavlink_msg_remote_cmd(stamp, sender_drone_id, cmd);
                     break;
+                case MAVLINK_MESSAGE_INFO_DRONE_STATUS:
+                    mavlink_drone_status_t status;
+                    mavlink_msg_drone_status_decode(&msg, &status);
+                    on_mavlink_drone_status(stamp, sender_drone_id, status);
                 default:
                     break;
             }
         }
     }
+}
+
+void SwarmPilot::on_mavlink_drone_status(ros::Time stamp, int node_id, const mavlink_drone_status_t & msg) {
+    
 }
 
 void SwarmPilot::incoming_broadcast_data_sub(const incoming_broadcast_data & data) {

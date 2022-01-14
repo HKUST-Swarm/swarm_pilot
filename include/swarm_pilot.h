@@ -114,6 +114,8 @@ public:
     void send_start_exploration(const drone_onboard_command & cmd);
 
     void on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const mavlink_swarm_remote_command_t & cmd);
+    
+    void on_mavlink_drone_status(ros::Time stamp, int node_id, const mavlink_drone_status_t & msg);
 
     void on_drone_commander_state(const drone_commander_state & _state);
 
