@@ -52,6 +52,15 @@ public:
     void end_formation();
 };
 
+struct NetworkStatus {
+    ros::Time last_heartbeat = ros::Time(0);
+    int drone_id;
+    bool active = 0;
+    int quality = 0;//0-100
+    int bandwidth = 0; //0-100
+    int hops = 1; //Hops to the target.
+};
+
 class SwarmPilot {
     ros::NodeHandle nh;
 
@@ -64,10 +73,11 @@ class SwarmPilot {
     ros::Publisher uwb_send_pub;
     ros::Publisher planning_tgt_pub;
     ros::Publisher traj_pub, exprolaration_pub;
+    ros::Publisher swarm_network_status_pub;
 
     ros::Publisher position_cmd_pub;
 
-    ros::Timer eight_trajectory_timer;
+    ros::Timer eight_trajectory_timer, net_timer;
     double mission_trajectory_timer_t = 0.0, eight_trajectory_timer_period = 30.0;
     bool eight_trajectory_enable = false, eight_trajectory_yaw_enable = false;
     bool mission_trajs_enable = false, mission_trajs_yaw_enable = false;
@@ -82,6 +92,7 @@ class SwarmPilot {
 
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
     double send_drone_status_freq = 1.0;
+    double heartbeat_timeout = 0.5;
 
     drone_commander_state cmd_state;
     ros::Time last_send_drone_status;
@@ -89,6 +100,8 @@ class SwarmPilot {
     int self_id = -1;
     uint8_t buf[1000] = {0};
     sensor_msgs::TimeReference uwb_time_ref;
+
+    std::map<int, NetworkStatus> swarm_network_status;
 
     SwarmFormationControl * formation_control = nullptr;
     void on_uwb_timeref(const sensor_msgs::TimeReference &ref);
@@ -129,6 +142,8 @@ public:
 
     void eight_trajectory_timer_callback(const ros::TimerEvent &e);
     void timer_callback(const ros::TimerEvent &e);
+    
+    void network_monitior_timer_callback(const ros::TimerEvent &e);
     void mission_trajs_timer_callback(const ros::TimerEvent &e);
 
     void start_mission_trajs(const drone_onboard_command & cmd);

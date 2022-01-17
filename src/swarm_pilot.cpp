@@ -1,5 +1,6 @@
 #include <swarm_pilot.h>
 #include <fstream>
+#include <swarmcomm_msgs/swarm_network_status.h>
 
 using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
@@ -404,6 +405,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     nh.param<int>("acpt_cmd_node", accept_cmd_node_id, -1);
     nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
     nh.param<double>("Ts", Ts, 0.1);
+    nh.param<double>("heartbeat_timeout", heartbeat_timeout, 0.5);
 
     assert(self_id > 0 && "Self ID must bigger than 0!!!");
     load_missions(nh);
@@ -428,6 +430,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
 
     eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::timer_callback, this);
+    net_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::network_monitior_timer_callback, this);
 
     last_send_drone_status = ros::Time(0);
     
@@ -805,7 +808,7 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
                     mavlink_msg_swarm_remote_command_decode(&msg, &cmd);
                     on_mavlink_msg_remote_cmd(stamp, sender_drone_id, cmd);
                     break;
-                case MAVLINK_MESSAGE_INFO_DRONE_STATUS:
+                case MAVLINK_MSG_ID_DRONE_STATUS:
                     mavlink_drone_status_t status;
                     mavlink_msg_drone_status_decode(&msg, &status);
                     on_mavlink_drone_status(stamp, sender_drone_id, status);
@@ -817,9 +820,41 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
 }
 
 void SwarmPilot::on_mavlink_drone_status(ros::Time stamp, int node_id, const mavlink_drone_status_t & msg) {
-    
+    if (swarm_network_status.find(node_id) == swarm_network_status.end()) {
+        ROS_INFO("[SWARM_PILOT] Drone %d connected.", node_id);
+    }
+    if (!swarm_network_status[node_id].active) {
+        ROS_INFO("[SWARM_PILOT] Drone %d reconnected.", node_id);
+    }
+    swarm_network_status[node_id].active = true;
+    swarm_network_status[node_id].last_heartbeat = stamp;
 }
 
 void SwarmPilot::incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
     incoming_broadcast_data_callback(data.data, data.remote_id, data.header.stamp);
+}
+
+
+void SwarmPilot::network_monitior_timer_callback(const ros::TimerEvent &e) {
+    ros::Time stamp = e.current_real;
+    swarmcomm_msgs::swarm_network_status s_status;
+    s_status.header.stamp = stamp;
+    for (auto & it : swarm_network_status) {
+        swarmcomm_msgs::drone_network_status d_status;
+        d_status.header.stamp = stamp;
+        auto & drone_status = it.second;
+        auto _id = it.first;
+        if (drone_status.active && (stamp - drone_status.last_heartbeat).toSec() > heartbeat_timeout) {
+            ROS_INFO("[SWARM_PILOT] Drone %d lost.", _id);
+            drone_status.active = false;
+        }
+        d_status.drone_id = _id;
+        d_status.quality = drone_status.quality;
+        d_status.bandwidth = drone_status.bandwidth;
+        d_status.hops = drone_status.hops;
+        d_status.active = drone_status.active;
+        s_status.node_ids.emplace_back(_id);
+        s_status.network_status.push_back(d_status);
+    }
+    swarm_network_status_pub.publish(s_status);
 }
