@@ -68,7 +68,7 @@ void SwarmFormationControl::on_swarm_traj(const bspline::Bspline & bspl) {
     int _id = bspl.drone_id;
     
     if (swarm_transformation.find(_id) == swarm_transformation.end()) {
-        ROS_WARN("[SWARM_PILOT] Swarm TRAJ fo %d could not be transfer, swarm localization not ready", _id);
+        // ROS_WARN("[SWARM_PILOT] Swarm TRAJ for %d could not be transfer, swarm localization not ready", _id);
         return;
     }
     
@@ -419,7 +419,8 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     planning_tgt_pub = nh.advertise<geometry_msgs::PoseStamped>("/planning/goal", 10);
     exprolaration_pub = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
     swarm_traj_pub = nh.advertise<bspline::Bspline>("/planning/swarm_traj", 10);
-
+    swarm_network_status_pub = nh.advertise<swarmcomm_msgs::swarm_network_status>("/swarm_drones/swarm_network_status", 10);
+    
     traj_pub = nh.advertise<std_msgs::Int8>("/swarm_traj_start_trigger", 1);
     incoming_data_sub = nh.subscribe("/uwb_node/incoming_broadcast_data", 10, &SwarmPilot::incoming_broadcast_data_sub, this, ros::TransportHints().tcpNoDelay());
     drone_cmd_state_sub = nh.subscribe("/drone_commander/swarm_commander_state", 1, &SwarmPilot::on_drone_commander_state, this, ros::TransportHints().tcpNoDelay());
@@ -775,13 +776,14 @@ void SwarmPilot::on_drone_commander_state(const drone_commander_state & _state) 
     }
     cmd_state = _state;
 
-    if ((ros::Time::now() - last_send_drone_status).toSec() > (1 / send_drone_status_freq) ) {
+    if ((ros::Time::now() - last_send_drone_status).toSec() > (1.0 / send_drone_status_freq) ) {
         last_send_drone_status = ros::Time::now();
         // _state.bat_remain = 345.375f * _state.bat_vol - 4757.3;
         mavlink_msg_drone_status_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), _state.flight_status, _state.control_auth,
                 _state.commander_ctrl_mode, _state.ctrl_input_state, _state.rc_valid, _state.onboard_cmd_valid, _state.djisdk_valid,
                 _state.vo_valid,_state.vo_latency, _state.bat_vol, _state.bat_remain, _state.pos.x, _state.pos.y, _state.pos.z, _state.yaw);
-        ROS_INFO_THROTTLE(1.0, "[SWAMR_PILOT] Sending swarm status");
+        // ROS_INFO_THROTTLE(1.0, "[SWAMR_PILOT] Sending swarm status");
+        ROS_INFO("[SWAMR_PILOT] Sending swarm status");
         send_mavlink_message(msg);
     }
 
@@ -821,13 +823,13 @@ void SwarmPilot::incoming_broadcast_data_callback(std::vector<uint8_t> data, int
 
 void SwarmPilot::on_mavlink_drone_status(ros::Time stamp, int node_id, const mavlink_drone_status_t & msg) {
     if (swarm_network_status.find(node_id) == swarm_network_status.end()) {
-        ROS_INFO("[SWARM_PILOT] Drone %d connected.", node_id);
+        ROS_INFO("[SWARM_PILOT] Drone %d connected at %.1fs.", node_id, stamp.toSec());
     }
     if (!swarm_network_status[node_id].active) {
-        ROS_INFO("[SWARM_PILOT] Drone %d reconnected.", node_id);
+        ROS_INFO("[SWARM_PILOT] Drone %d reconnected %.1fs.", node_id, stamp.toSec());
     }
     swarm_network_status[node_id].active = true;
-    swarm_network_status[node_id].last_heartbeat = stamp;
+    swarm_network_status[node_id].last_heartbeat = ros::Time::now();
 }
 
 void SwarmPilot::incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
@@ -844,8 +846,9 @@ void SwarmPilot::network_monitior_timer_callback(const ros::TimerEvent &e) {
         d_status.header.stamp = stamp;
         auto & drone_status = it.second;
         auto _id = it.first;
-        if (drone_status.active && (stamp - drone_status.last_heartbeat).toSec() > heartbeat_timeout) {
-            ROS_INFO("[SWARM_PILOT] Drone %d lost.", _id);
+        float dtlast = (stamp - drone_status.last_heartbeat).toSec();
+        if (drone_status.active && dtlast > heartbeat_timeout) {
+            ROS_INFO("[SWARM_PILOT] Drone %d lost at %.1f timeout %.1f/%.1f.", _id, stamp.toSec(), dtlast, heartbeat_timeout);
             drone_status.active = false;
         }
         d_status.drone_id = _id;

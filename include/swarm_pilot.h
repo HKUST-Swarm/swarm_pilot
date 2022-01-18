@@ -56,9 +56,9 @@ struct NetworkStatus {
     ros::Time last_heartbeat = ros::Time(0);
     int drone_id;
     bool active = 0;
-    int quality = 0;//0-100
-    int bandwidth = 0; //0-100
-    int hops = 1; //Hops to the target.
+    int quality = -1;//0-100
+    int bandwidth = -1; //0-100
+    int hops = -1; //Hops to the target.
 };
 
 class SwarmPilot {
