@@ -16,6 +16,7 @@
 #include <swarm_msgs/swarm_fused.h>
 #include <swarm_msgs/Pose.h>
 #include <bspline/Bspline.h>
+#include <swarmcomm_msgs/swarm_network_status.h>
 
 using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
@@ -56,8 +57,8 @@ struct NetworkStatus {
     ros::Time last_heartbeat = ros::Time(0);
     int drone_id;
     bool active = 0;
-    int quality = -1;//0-100
-    int bandwidth = -1; //0-100
+    double quality = -1;//0-100
+    double bandwidth = -1; //0-100
     int hops = -1; //Hops to the target.
 };
 
@@ -68,6 +69,7 @@ class SwarmPilot {
     ros::Subscriber swarm_local_sub;
     ros::Subscriber swarm_basecoor_sub;
     ros::Subscriber swarm_traj_sub;
+    ros::Subscriber drone_network_sub;
     ros::Publisher swarm_traj_pub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
@@ -143,6 +145,7 @@ public:
     void eight_trajectory_timer_callback(const ros::TimerEvent &e);
     void timer_callback(const ros::TimerEvent &e);
     
+    void drone_network_callback(const swarmcomm_msgs::drone_network_status & status);
     void network_monitior_timer_callback(const ros::TimerEvent &e);
     void mission_trajs_timer_callback(const ros::TimerEvent &e);
 

@@ -429,7 +429,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     swarm_traj_sub = nh.subscribe("/planning/swarm_traj_recv", 10, &SwarmFormationControl::on_swarm_traj, formation_control, ros::TransportHints().tcpNoDelay());
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
-
+    drone_network_sub = nh.subscribe("/swarm_loop/drone_network_status", 1, &SwarmPilot::drone_network_callback, this, ros::TransportHints().tcpNoDelay());
     eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::timer_callback, this);
     net_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::network_monitior_timer_callback, this);
 
@@ -834,6 +834,18 @@ void SwarmPilot::on_mavlink_drone_status(ros::Time stamp, int node_id, const mav
 
 void SwarmPilot::incoming_broadcast_data_sub(const incoming_broadcast_data & data) {
     incoming_broadcast_data_callback(data.data, data.remote_id, data.header.stamp);
+}
+
+void SwarmPilot::drone_network_callback(const swarmcomm_msgs::drone_network_status & status) {
+    if (status.quality > 0) {
+        swarm_network_status[status.drone_id].quality = status.quality;
+    }
+    if (status.bandwidth > 0) {
+        swarm_network_status[status.drone_id].bandwidth = status.bandwidth;
+    }
+    if (status.hops > 0) {
+        swarm_network_status[status.drone_id].hops = status.hops;
+    }
 }
 
 
