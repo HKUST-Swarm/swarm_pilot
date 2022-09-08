@@ -17,6 +17,7 @@
 #include <swarm_msgs/Pose.h>
 #include <bspline/Bspline.h>
 #include <swarmcomm_msgs/swarm_network_status.h>
+#include <nav_msgs/Odometry.h>
 
 using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
@@ -70,6 +71,7 @@ class SwarmPilot {
     ros::Subscriber swarm_basecoor_sub;
     ros::Subscriber swarm_traj_sub;
     ros::Subscriber drone_network_sub;
+    ros::Subscriber odom_sub;
     ros::Publisher swarm_traj_pub;
     ros::Publisher onboardcmd_pub;
     ros::Publisher uwb_send_pub;
@@ -95,6 +97,9 @@ class SwarmPilot {
     int accept_cmd_node_id = -1; //-1 Accept all, >=0 accept corresponding
     double send_drone_status_freq = 1.0;
     double heartbeat_timeout = 0.5;
+    double send_odom_freq = 50.0;
+
+    ros::Time last_send_odom;
 
     drone_commander_state cmd_state;
     ros::Time last_send_drone_status;
@@ -133,6 +138,7 @@ public:
     void on_mavlink_drone_status(ros::Time stamp, int node_id, const mavlink_drone_status_t & msg);
 
     void on_drone_commander_state(const drone_commander_state & _state);
+    void on_odometry(const nav_msgs::Odometry & odom);
 
     void send_mavlink_message(mavlink_message_t & msg, int send_method = 2);
 

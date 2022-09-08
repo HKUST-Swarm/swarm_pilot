@@ -1,6 +1,7 @@
 #include <swarm_pilot.h>
 #include <fstream>
 #include <swarmcomm_msgs/swarm_network_status.h>
+#include <mavlink/swarm/mavlink_msg_drone_odom_gt.h>
 
 using namespace swarmcomm_msgs;
 using namespace swarmtal_msgs;
@@ -430,10 +431,12 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     uwb_remote_sub = nh.subscribe("/uwb_node/remote_nodes", 1, &SwarmPilot::on_uwb_remote_node, this, ros::TransportHints().tcpNoDelay());
     local_cmd_sub = nh.subscribe("/drone_position_control/drone_pos_cmd", 1, &SwarmFormationControl::on_drone_position_command, formation_control, ros::TransportHints().tcpNoDelay());
     drone_network_sub = nh.subscribe("/swarm_loop/drone_network_status", 1, &SwarmPilot::drone_network_callback, this, ros::TransportHints().tcpNoDelay());
+    odom_sub = nh.subscribe("/d2vins/imu_propagation", 1, &SwarmPilot::on_odometry, this, ros::TransportHints().tcpNoDelay());
     eight_trajectory_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::timer_callback, this);
     net_timer = nh.createTimer(ros::Duration(0.02), &SwarmPilot::network_monitior_timer_callback, this);
 
     last_send_drone_status = ros::Time(0);
+    last_send_odom = ros::Time::now();
     
     ROS_INFO("[SWARM_PILOT] Node %d ready", self_id);
 }
@@ -787,6 +790,22 @@ void SwarmPilot::on_drone_commander_state(const drone_commander_state & _state) 
         send_mavlink_message(msg);
     }
 
+}
+
+void SwarmPilot::on_odometry(const nav_msgs::Odometry & odom) {
+    if ((ros::Time::now() - last_send_odom).toSec() < 1/send_odom_freq) {
+        return;
+    }
+    last_send_odom = ros::Time::now();
+    mavlink_message_t msg;
+    auto pos = odom.pose.pose.position;
+    auto quat = odom.pose.pose.orientation;
+    auto vel = odom.twist.twist.linear;
+    mavlink_msg_drone_odom_gt_pack(self_id, 0, &msg, ROSTIME2LPS(ros::Time::now()), 
+        self_id, pos.x*1000, pos.y*1000, pos.z*1000,
+        quat.w*10000, quat.x*10000, quat.y*10000, quat.z*10000, 
+        vel.x*1000, vel.y*1000, vel.z*1000);
+    send_mavlink_message(msg);
 }
 
 void SwarmPilot::send_mavlink_message(mavlink_message_t & msg, int send_method) {
