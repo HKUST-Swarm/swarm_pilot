@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   swarm_msgs
   swarmcomm_msgs
   swarmtal_msgs
+  bspline
 )
 
 find_package(Eigen3)
