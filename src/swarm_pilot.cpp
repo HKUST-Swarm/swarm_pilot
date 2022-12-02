@@ -378,8 +378,8 @@ void SwarmPilot::send_velocity_command(Eigen::Vector3d vel, double yaw) {
 
 void SwarmPilot::load_missions(ros::NodeHandle & nh) {
     //Now only load mission id 0 from default path
-    int mission_num = 1;
-    nh.param<int>("mission_num", mission_num, 1);
+    int mission_num = 0;
+    nh.param<int>("mission_num", mission_num, 0);
     std::string mission_path;
     nh.param<std::string>("mission_path", mission_path,  "/home/dji/SwarmConfig/missions/");
     ROS_INFO("[SWARM_PILOT] Trying to load %d missions from %s", mission_num, mission_path.c_str());
