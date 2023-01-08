@@ -407,6 +407,7 @@ SwarmPilot::SwarmPilot(ros::NodeHandle & _nh):
     nh.param<double>("send_drone_status_freq", send_drone_status_freq, 5);
     nh.param<double>("Ts", Ts, 0.1);
     nh.param<double>("heartbeat_timeout", heartbeat_timeout, 0.5);
+    nh.param<bool>("enable_planner", enable_planner, false);
 
     assert(self_id > 0 && "Self ID must bigger than 0!!!");
     load_missions(nh);
@@ -639,25 +640,30 @@ void SwarmPilot::send_start_exploration(const drone_onboard_command & cmd) {
 
 }
 
-void SwarmPilot::send_planning_command(const drone_onboard_command & cmd) {
+void SwarmPilot::send_planning_command(drone_onboard_command cmd) {
     if (cmd.command_type == drone_onboard_command::CTRL_PLANING_TGT_COMMAND &&
         is_planning_control_available()) {
-        geometry_msgs::PoseStamped pose_tgt;
-        pose_tgt.header.stamp = ros::Time::now();
-        pose_tgt.header.frame_id = "world";
-        
-        pose_tgt.pose.position.x = cmd.param1 / 10000.0;
-        pose_tgt.pose.position.y = cmd.param2 / 10000.0;
-        pose_tgt.pose.position.z = cmd.param3 / 10000.0;
+        if (enable_planner) {
+            geometry_msgs::PoseStamped pose_tgt;
+            pose_tgt.header.stamp = ros::Time::now();
+            pose_tgt.header.frame_id = "world";
+            
+            pose_tgt.pose.position.x = cmd.param1 / 10000.0;
+            pose_tgt.pose.position.y = cmd.param2 / 10000.0;
+            pose_tgt.pose.position.z = cmd.param3 / 10000.0;
 
-        Eigen::Quaterniond _quat(Eigen::AngleAxisd(-cmd.param4/10000.0, Eigen::Vector3d::UnitZ()));
-        // pose_tgt.
-        pose_tgt.pose.orientation.w = _quat.w();
-        pose_tgt.pose.orientation.x = _quat.x();
-        pose_tgt.pose.orientation.y = _quat.y();
-        pose_tgt.pose.orientation.z = _quat.z();
-        ROS_INFO("[SWAMR_PILOT] Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
-        planning_tgt_pub.publish(pose_tgt);
+            Eigen::Quaterniond _quat(Eigen::AngleAxisd(-cmd.param4/10000.0, Eigen::Vector3d::UnitZ()));
+            // pose_tgt.
+            pose_tgt.pose.orientation.w = _quat.w();
+            pose_tgt.pose.orientation.x = _quat.x();
+            pose_tgt.pose.orientation.y = _quat.y();
+            pose_tgt.pose.orientation.z = _quat.z();
+            ROS_INFO("[SWAMR_PILOT] Sending traj fly to [%3.2f, %3.2f, %3.2f]", pose_tgt.pose.position.x, pose_tgt.pose.position.y, pose_tgt.pose.position.z);
+            planning_tgt_pub.publish(pose_tgt);
+        } else {
+            cmd.command_type = drone_onboard_command::CTRL_POS_COMMAND;
+            onboardcmd_pub.publish(cmd);
+        }
     } else {
         ROS_WARN("[SWAMR_PILOT] Reject fly to. Planning not ready.");
     }

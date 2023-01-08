@@ -114,6 +114,7 @@ class SwarmPilot {
     void on_uwb_timeref(const sensor_msgs::TimeReference &ref);
 
     bool planning_debug_mode = false;
+    bool enable_planner;
 
 
 public:
@@ -129,7 +130,7 @@ public:
     
     void on_uwb_remote_node(const remote_uwb_info & info);
 
-    void send_planning_command(const drone_onboard_command & cmd);
+    void send_planning_command(drone_onboard_command cmd);
 
     void send_start_exploration(const drone_onboard_command & cmd);
 
