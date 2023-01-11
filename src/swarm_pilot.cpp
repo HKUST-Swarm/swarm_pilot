@@ -680,9 +680,6 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
     // }
 
     drone_onboard_command onboardCommand;
-    //TODO:Write end mission codes.
-    eight_trajectory_enable = false;
-
 
     ROS_INFO("[SWAMR_PILOT] Recv onboard cmd from %d target %d type %d is planning ok %d Params 1-3: %d %d %d 4-6: %d %d %d, 7-10: %d %d %d %d",
                 node_id, cmd.target_id,
@@ -720,6 +717,8 @@ void SwarmPilot::on_mavlink_msg_remote_cmd(ros::Time stamp, int node_id, const m
         return;
     }
 
+    // In this case, we should end the eight traj to let other command works.
+    end_mission();
     switch (cmd.command_type) {
         case drone_onboard_command::CTRL_SPEC_TRAJS: {
             if (is_planning_control_available()) {
