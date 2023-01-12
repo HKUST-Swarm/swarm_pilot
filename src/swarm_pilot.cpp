@@ -616,9 +616,8 @@ void SwarmPilot::start_spec_trajs(const drone_onboard_command & cmd) {
         eight_traj_mode = cmd.param7;
         mission_trajectory_timer_t = 0;
         eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000.0, cmd.param5/10000.0, cmd.param6/10000.0);
-        ROS_INFO("[SWAMR_PILOT] Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
-            eight_trajectory_yaw_enable,
-            eight_trajectory_timer_period,
+        ROS_INFO("[SWAMR_PILOT] Start 8 trajectort: enable Yaw: %d mode %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",
+            eight_trajectory_yaw_enable, eight_traj_mode, eight_trajectory_timer_period,
             eight_trajectory_center.x(), eight_trajectory_center.y(), eight_trajectory_center.z());
     }
 }
