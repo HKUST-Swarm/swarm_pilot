@@ -533,17 +533,26 @@ void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
     
     double _t = mission_trajectory_timer_t* 2*M_PI/T;
     double x, y, vx, vy, ax, ay, yaw;
-
     ox = eight_trajectory_center(0);
     oy = eight_trajectory_center(1);
     oz = eight_trajectory_center(2);
-    x = ox + 2 * sin(_t);
-    y = oy + 2 * sin(_t) * cos(_t);
-    vx = 2 * cos(_t) * M_PI * 2/T;
-    vy = 2 * cos(2*_t) * M_PI * 2/T;
-    ax = -2 * sin(_t) * M_PI * 2/T * M_PI * 2/T;
-    ay = -2 * sin(2*_t) * M_PI * 2/T * 2 * M_PI * 2/T;
-    yaw = atan2(-cos(2*_t),cos(_t));
+    if (eight_traj_mode == 0) {
+        x = ox + 2 * sin(_t);
+        y = oy + 2 * sin(_t) * cos(_t);
+        vx = 2 * cos(_t) * M_PI * 2/T;
+        vy = 2 * cos(2*_t) * M_PI * 2/T;
+        ax = -2 * sin(_t) * M_PI * 2/T * M_PI * 2/T;
+        ay = -2 * sin(2*_t) * M_PI * 2/T * 2 * M_PI * 2/T;
+        yaw = atan2(-cos(2*_t),cos(_t));
+    } else {
+        x = ox + 2 * sin(_t) * cos(_t);
+        y = oy + 2 * sin(_t);
+        vy = 2 * cos(_t) * M_PI * 2/T;
+        vx = 2 * cos(2*_t) * M_PI * 2/T;
+        ay = -2 * sin(_t) * M_PI * 2/T * M_PI * 2/T;
+        ax = -2 * sin(2*_t) * M_PI * 2/T * 2 * M_PI * 2/T;
+        yaw = atan2(cos(_t),-cos(2*_t));
+    }
 
     drone_onboard_command onboardCommand;
     // onboardCommand.command_type = cmd.command_type;
@@ -559,10 +568,8 @@ void SwarmPilot::eight_trajectory_timer_callback(const ros::TimerEvent &e) {
         } else {
             onboardCommand.param4 = yaw*10000;
         }
-
     }
-    else
-    {
+    else {
         onboardCommand.param4 = 666666;  
     }
 
@@ -606,6 +613,7 @@ void SwarmPilot::start_spec_trajs(const drone_onboard_command & cmd) {
         eight_trajectory_enable = true;
         eight_trajectory_yaw_enable = cmd.param2;
         eight_trajectory_timer_period = cmd.param3/10000.0;
+        eight_traj_mode = cmd.param4;
         mission_trajectory_timer_t = 0;
         eight_trajectory_center = Eigen::Vector3d(cmd.param4/10000.0, cmd.param5/10000.0, cmd.param6/10000.0);
         ROS_INFO("[SWAMR_PILOT] Start 8 trajectort. Enable Yaw: %d, T %3.1f center [%3.2f, %3.2f, %3.2f]",

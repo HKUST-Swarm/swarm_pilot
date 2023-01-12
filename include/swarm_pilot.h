@@ -84,6 +84,7 @@ class SwarmPilot {
     ros::Timer eight_trajectory_timer, net_timer;
     double mission_trajectory_timer_t = 0.0, eight_trajectory_timer_period = 30.0;
     bool eight_trajectory_enable = false, eight_trajectory_yaw_enable = false;
+    int eight_traj_mode = 0; //0: more on x 1: more on y
     bool mission_trajs_enable = false, mission_trajs_yaw_enable = false;
     
     std::vector<Eigen::Matrix<double, Eigen::Dynamic, 4>> mission_trajs; //[X, Y, Z, YAW] XYZ IN FLU. YAW in NED.
